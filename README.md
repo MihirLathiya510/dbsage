@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/logo.png" alt="dbsage logo" width="160" />
+  <img src="assets/logo.png" alt="dbsage logo" width="120" height="120" />
 
 # dbsage
 
