@@ -17,7 +17,7 @@ Connect Claude Code, Cursor, or any MCP-compatible AI tool directly to your MySQ
 |---|---|
 | **Read-only safety** | Blocks INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, CREATE, GRANT, REVOKE at the validator level |
 | **Automatic LIMIT injection** | Queries without a LIMIT get one added automatically (default 100 rows) |
-| **Query timeout** | Every query runs under a configurable timeout (default 3 s) |
+| **Query timeout** | Every query runs under a configurable timeout (default 10 s) |
 | **Schema caching** | Table lists, column definitions, and FK relationships cached with TTL (default 5 min) |
 | **Table blacklisting** | Hide sensitive tables from the LLM via env var or JSON config |
 | **Semantic layer** | Attach business descriptions, column meanings, and vocabulary to your schema |
