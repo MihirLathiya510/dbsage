@@ -1,6 +1,11 @@
+<div align="center">
+  <img src="assets/logo.png" alt="dbsage logo" width="160" />
+
 # dbsage
 
 **AI Database Copilot** — a production-grade [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that gives LLMs safe, structured, read-only access to relational databases.
+
+</div>
 
 Connect Claude Code, Cursor, or any MCP-compatible AI tool directly to your MySQL or PostgreSQL database. The server enforces strict read-only guarantees, injects query limits, caches schema metadata, and provides business-context annotations so the LLM understands your database without guessing.
 
