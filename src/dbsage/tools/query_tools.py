@@ -13,7 +13,7 @@ from dbsage.mcp_server.server import mcp
 
 
 @mcp.tool()
-async def run_read_only_query(sql_query: str) -> str:
+async def run_read_only_query(query: str) -> str:
     """Execute a safe read-only SQL SELECT query against the database.
 
     The query is automatically validated (no INSERT/UPDATE/DELETE/DROP etc.)
@@ -23,22 +23,22 @@ async def run_read_only_query(sql_query: str) -> str:
     Forbidden: INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, CREATE, GRANT, REVOKE
 
     Args:
-        sql_query: A read-only SQL query to execute.
+        query: A read-only SQL query to execute.
     """
     settings = get_app_settings()
     engine = get_db_engine()
 
     # Layer 1: validate — block any forbidden operations
     try:
-        validate_query(sql_query)
+        validate_query(query)
     except ForbiddenQueryError as e:
         await log_query_rejected(
-            query=sql_query, reason="forbidden_keyword", keyword=e.keyword
+            query=query, reason="forbidden_keyword", keyword=e.keyword
         )
         return f"Error: {e}"
 
     # Layer 2: rewrite — inject LIMIT if missing
-    safe_query = rewrite_query(sql_query, max_rows=settings.max_query_rows)
+    safe_query = rewrite_query(query, max_rows=settings.max_query_rows)
 
     # Layer 3: execute with timeout
     start = time.monotonic()
@@ -55,25 +55,25 @@ async def run_read_only_query(sql_query: str) -> str:
 
 
 @mcp.tool()
-async def explain_query(sql_query: str) -> str:
+async def explain_query(query: str) -> str:
     """Return the query execution plan for a SQL query.
 
     Use this to inspect whether a query will use indexes or cause a full table scan
     before actually running it. Helps write efficient queries.
 
     Args:
-        sql_query: A SELECT query to explain.
+        query: A SELECT query to explain.
     """
     settings = get_app_settings()
     engine = get_db_engine()
 
     # Validate the underlying query first
     try:
-        validate_query(sql_query)
+        validate_query(query)
     except ForbiddenQueryError as e:
         return f"Error: {e}"
 
-    explain_sql = f"EXPLAIN {sql_query.strip()}"
+    explain_sql = f"EXPLAIN {query.strip()}"
     rows = await execute_query(
         explain_sql, engine, timeout_ms=settings.query_timeout_ms
     )
