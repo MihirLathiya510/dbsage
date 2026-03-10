@@ -1,0 +1,7 @@
+{
+  "blacklisted_tables": [
+    "admin_tokens",
+    "internal_logs",
+    "audit_secrets"
+  ]
+}
