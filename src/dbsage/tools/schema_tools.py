@@ -1,5 +1,6 @@
 """Schema inspection tools — describe tables, relationships, and database overview."""
 
+from dbsage.cache.schema_cache import cache_get, cache_set
 from dbsage.exceptions import TableBlacklistedError
 from dbsage.formatting.table_formatter import format_column_list
 from dbsage.mcp_server.dependencies import get_app_settings, get_db_engine
@@ -33,7 +34,13 @@ async def describe_table(table_name: str) -> str:
     columns = await _describe_table(
         table_name, engine, timeout_ms=settings.query_timeout_ms
     )
-    return format_column_list(columns)
+    fks = await get_foreign_keys(
+        engine, table_name=table_name, timeout_ms=settings.query_timeout_ms
+    )
+    fk_map = {
+        fk["from_column"]: f"{fk['to_table']}.{fk['to_column']}" for fk in fks
+    }
+    return format_column_list(columns, fk_map=fk_map)
 
 
 @mcp.tool()
@@ -93,6 +100,10 @@ async def schema_summary() -> str:
     settings = get_app_settings()
     engine = get_db_engine()
 
+    cached = cache_get("schema_summary")
+    if cached is not None:
+        return str(cached)
+
     blacklisted = {t.lower() for t in settings.blacklisted_tables}
 
     tables, fks = await _fetch_summary_data(engine, settings.query_timeout_ms)
@@ -135,7 +146,9 @@ async def schema_summary() -> str:
                 f" → {fk['to_table']}.{fk['to_column']}"
             )
 
-    return "\n".join(lines)
+    result = "\n".join(lines)
+    cache_set("schema_summary", result, settings.cache_ttl_seconds)
+    return result
 
 
 async def _fetch_summary_data(

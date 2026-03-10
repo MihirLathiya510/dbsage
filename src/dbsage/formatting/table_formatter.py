@@ -52,14 +52,22 @@ def format_as_table(rows: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def format_column_list(columns: list[dict[str, Any]]) -> str:
+def format_column_list(
+    columns: list[dict[str, Any]],
+    fk_map: dict[str, str] | None = None,
+) -> str:
     """Format describe_table output as a readable column list.
 
+    Args:
+        columns: Column metadata dicts from schema_explorer.describe_table().
+        fk_map: Optional mapping of column name → "target_table.target_column"
+                for annotating FK columns with their reference target.
+
     Example output:
-        id          INT      PK   NOT NULL
-        user_id     INT      MUL  NOT NULL
-        email       VARCHAR       NOT NULL
-        created_at  DATETIME      YES
+        id                             INT             PK   NOT NULL  auto_increment
+        organization_id                BIGINT          IDX → Organizations.id  NOT NULL
+        email                          VARCHAR              NOT NULL
+        created_at                     DATETIME             YES
     """
     if not columns:
         return "(no columns found)"
@@ -73,6 +81,8 @@ def format_column_list(columns: list[dict[str, Any]]) -> str:
         extra = str(col.get("extra", ""))
 
         key_label = {"PRI": "PK", "UNI": "UQ", "MUL": "IDX"}.get(key, "   ")
+        if fk_map and name in fk_map:
+            key_label = f"IDX → {fk_map[name]}"
         extra_label = f"  {extra}" if extra else ""
         lines.append(f"{name:<30} {dtype:<15} {key_label}  {nullable}{extra_label}")
 

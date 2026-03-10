@@ -117,16 +117,21 @@ async def test_describe_table_formats_columns() -> None:
 
     settings = _settings()
     p_s, p_e, _ = _patch_deps(settings)
-    cols = [{"column_name": "id", "data_type": "int", "is_nullable": "NO",
-             "column_key": "PRI", "column_default": None, "extra": "auto_increment"}]
+    cols = [
+        {"column_name": "id", "data_type": "int", "is_nullable": "NO",
+         "column_key": "PRI", "column_default": None, "extra": "auto_increment"},
+        {"column_name": "org_id", "data_type": "bigint", "is_nullable": "NO",
+         "column_key": "MUL", "column_default": None, "extra": ""},
+    ]
+    fks = [{"from_table": "users", "from_column": "org_id",
+            "to_table": "Organizations", "to_column": "id", "constraint_name": "fk1"}]
     with p_s, p_e:
-        with patch(
-            "dbsage.tools.schema_tools._describe_table",
-            AsyncMock(return_value=cols),
-        ):
-            result = await describe_table("users")
+        with patch("dbsage.tools.schema_tools._describe_table", AsyncMock(return_value=cols)):
+            with patch("dbsage.tools.schema_tools.get_foreign_keys", AsyncMock(return_value=fks)):
+                result = await describe_table("users")
     assert "id" in result
     assert "PK" in result
+    assert "IDX → Organizations.id" in result
 
 
 async def test_describe_table_raises_on_blacklisted() -> None:
@@ -179,11 +184,24 @@ async def test_schema_summary_shows_tables_and_relationships() -> None:
     fks = [{"from_table": "orders", "from_column": "user_id",
             "to_table": "users", "to_column": "id", "constraint_name": "fk1"}]
     with p_s, p_e:
-        with patch("dbsage.tools.schema_tools.get_table_sizes", AsyncMock(return_value=tables)):
-            with patch("dbsage.tools.schema_tools.get_foreign_keys", AsyncMock(return_value=fks)):
-                result = await schema_summary()
+        with patch("dbsage.tools.schema_tools.cache_get", return_value=None):
+            with patch("dbsage.tools.schema_tools.cache_set"):
+                with patch("dbsage.tools.schema_tools.get_table_sizes", AsyncMock(return_value=tables)):
+                    with patch("dbsage.tools.schema_tools.get_foreign_keys", AsyncMock(return_value=fks)):
+                        result = await schema_summary()
     assert "users" in result
     assert "Relationships" in result
+
+
+async def test_schema_summary_returns_cached_result() -> None:
+    from dbsage.tools.schema_tools import schema_summary
+
+    settings = _settings()
+    p_s, p_e, _ = _patch_deps(settings)
+    with p_s, p_e:
+        with patch("dbsage.tools.schema_tools.cache_get", return_value="cached summary"):
+            result = await schema_summary()
+    assert result == "cached summary"
 
 
 # ── query_tools ──────────────────────────────────────────────────────────────
