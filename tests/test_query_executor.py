@@ -37,7 +37,9 @@ async def test_returns_list_of_dicts(mock_engine: AsyncMock) -> None:
 
     with patch("dbsage.db.query_executor.async_sessionmaker") as mock_factory:
         mock_factory.return_value = MagicMock(return_value=mock_session)
-        result = await execute_query("SELECT * FROM users", mock_engine, timeout_ms=3000)
+        result = await execute_query(
+            "SELECT * FROM users", mock_engine, timeout_ms=3000
+        )
 
     assert result == expected
 
@@ -71,7 +73,9 @@ async def test_timeout_raises_query_timeout_error(mock_engine: AsyncMock) -> Non
             await execute_query("SELECT SLEEP(10)", mock_engine, timeout_ms=10)
 
 
-async def test_sqlalchemy_error_raises_connection_pool_error(mock_engine: AsyncMock) -> None:
+async def test_sqlalchemy_error_raises_connection_pool_error(
+    mock_engine: AsyncMock,
+) -> None:
     from sqlalchemy.exc import SQLAlchemyError
 
     mock_session = AsyncMock()

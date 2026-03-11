@@ -1,11 +1,7 @@
 """Tests for the semantic layer — loader and tools."""
 
-import json
-import tempfile
 from pathlib import Path
 from unittest.mock import patch
-
-import pytest
 
 from dbsage.semantic import semantic_loader
 
@@ -17,6 +13,7 @@ def _patch_schema(data: dict) -> object:
 
 
 # ── semantic_loader ───────────────────────────────────────────────────────────
+
 
 def test_get_database_info_returns_db_block() -> None:
     schema = {"database": {"name": "testdb", "description": "A test DB"}}
@@ -68,7 +65,9 @@ def test_get_table_meta_not_found_returns_none() -> None:
 
 
 def test_get_common_analytics_returns_list() -> None:
-    schema = {"common_analytics": [{"name": "q1", "sql": "SELECT 1", "description": "test"}]}
+    schema = {
+        "common_analytics": [{"name": "q1", "sql": "SELECT 1", "description": "test"}]
+    }
     with _patch_schema(schema):
         items = semantic_loader.get_common_analytics()
     assert len(items) == 1
@@ -91,7 +90,11 @@ def test_search_by_term_table_match() -> None:
     schema = {
         "vocabulary": {},
         "tables": {
-            "Deals": {"description": "Loan deal applications", "tags": ["loan"], "columns": {}}
+            "Deals": {
+                "description": "Loan deal applications",
+                "tags": ["loan"],
+                "columns": {},
+            }
         },
     }
     with _patch_schema(schema):
@@ -107,7 +110,9 @@ def test_search_by_term_column_match() -> None:
             "Deals": {
                 "description": "Deals",
                 "tags": [],
-                "columns": {"organization_id": "FK to Organizations — the borrower org"},
+                "columns": {
+                    "organization_id": "FK to Organizations — the borrower org"
+                },
             }
         },
     }
@@ -125,7 +130,9 @@ def test_search_by_term_no_match_returns_empty() -> None:
 
 def test_load_missing_file_returns_empty(tmp_path: Path) -> None:
     semantic_loader._load.cache_clear()
-    with patch("dbsage.semantic.semantic_loader._SEMANTIC_JSON", tmp_path / "missing.json"):
+    with patch(
+        "dbsage.semantic.semantic_loader._SEMANTIC_JSON", tmp_path / "missing.json"
+    ):
         result = semantic_loader._load()
     assert result == {}
     semantic_loader._load.cache_clear()
@@ -142,6 +149,7 @@ def test_load_malformed_json_returns_empty(tmp_path: Path) -> None:
 
 
 # ── semantic_tools ────────────────────────────────────────────────────────────
+
 
 def test_get_database_context_with_schema() -> None:
     from dbsage.tools.semantic_tools import get_database_context

@@ -1,6 +1,5 @@
 """Tests for the query rewriter — LIMIT injection."""
 
-
 from dbsage.db.query_rewriter import rewrite_query
 
 

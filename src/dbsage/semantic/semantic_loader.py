@@ -77,12 +77,14 @@ def search_by_term(query: str) -> list[dict[str, Any]]:
             key = f"vocab:{term}"
             if key not in seen:
                 seen.add(key)
-                results.append({
-                    "type": "vocabulary",
-                    "term": term,
-                    "maps_to": mapping,
-                    "description": f'Business term "{term}" maps to → {mapping}',
-                })
+                results.append(
+                    {
+                        "type": "vocabulary",
+                        "term": term,
+                        "maps_to": mapping,
+                        "description": f'Business term "{term}" maps to → {mapping}',
+                    }
+                )
 
     # 2. Table name / description / tag match
     for table_name, meta in get_all_tables_meta().items():
@@ -97,12 +99,14 @@ def search_by_term(query: str) -> list[dict[str, Any]]:
             key = f"table:{table_name}"
             if key not in seen:
                 seen.add(key)
-                results.append({
-                    "type": "table",
-                    "table": table_name,
-                    "description": table_desc,
-                    "tags": tags,
-                })
+                results.append(
+                    {
+                        "type": "table",
+                        "table": table_name,
+                        "description": table_desc,
+                        "tags": tags,
+                    }
+                )
 
         # 3. Column description match
         for col_name, col_desc in meta.get("columns", {}).items():
@@ -110,11 +114,13 @@ def search_by_term(query: str) -> list[dict[str, Any]]:
                 key = f"col:{table_name}.{col_name}"
                 if key not in seen:
                     seen.add(key)
-                    results.append({
-                        "type": "column",
-                        "table": table_name,
-                        "column": col_name,
-                        "description": col_desc,
-                    })
+                    results.append(
+                        {
+                            "type": "column",
+                            "table": table_name,
+                            "column": col_name,
+                            "description": col_desc,
+                        }
+                    )
 
     return results

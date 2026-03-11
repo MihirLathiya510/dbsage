@@ -2,8 +2,6 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
 from dbsage.logging_.query_logger import (
     configure_logging,
     log_query_executed,
@@ -24,7 +22,9 @@ async def test_log_query_executed_calls_ainfo() -> None:
     with patch("dbsage.logging_.query_logger.get_logger", return_value=mock_log):
         with patch("dbsage.mcp_server.config.get_settings") as mock_settings:
             mock_settings.return_value.slow_query_threshold_ms = 9999
-            await log_query_executed("SELECT 1", execution_time_ms=45.0, rows_returned=1)
+            await log_query_executed(
+                "SELECT 1", execution_time_ms=45.0, rows_returned=1
+            )
     mock_log.ainfo.assert_called_once()
     call_kwargs = mock_log.ainfo.call_args[1]
     assert call_kwargs["rows_returned"] == 1
@@ -50,7 +50,9 @@ async def test_log_query_executed_triggers_slow_query_when_threshold_exceeded() 
 async def test_log_query_rejected_calls_awarning() -> None:
     mock_log = _make_mock_logger()
     with patch("dbsage.logging_.query_logger.get_logger", return_value=mock_log):
-        await log_query_rejected("DROP TABLE users", reason="forbidden_keyword", keyword="DROP")
+        await log_query_rejected(
+            "DROP TABLE users", reason="forbidden_keyword", keyword="DROP"
+        )
     mock_log.awarning.assert_called_once()
     call_kwargs = mock_log.awarning.call_args[1]
     assert call_kwargs["keyword"] == "DROP"

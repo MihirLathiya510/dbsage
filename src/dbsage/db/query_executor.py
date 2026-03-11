@@ -33,8 +33,6 @@ async def execute_query(
                 result = await session.execute(text(sql))
                 return [dict(row._mapping) for row in result.fetchall()]
     except TimeoutError as e:
-        raise QueryTimeoutError(
-            f"Query exceeded timeout of {timeout_ms}ms"
-        ) from e
+        raise QueryTimeoutError(f"Query exceeded timeout of {timeout_ms}ms") from e
     except SQLAlchemyError as e:
         raise ConnectionPoolError(f"Database error: {e}") from e

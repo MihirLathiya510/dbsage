@@ -11,17 +11,21 @@ from dbsage.exceptions import ForbiddenQueryError
 
 # --- Forbidden keywords ---
 
-@pytest.mark.parametrize("keyword", [
-    "DROP",
-    "DELETE",
-    "INSERT",
-    "UPDATE",
-    "ALTER",
-    "TRUNCATE",
-    "CREATE",
-    "GRANT",
-    "REVOKE",
-])
+
+@pytest.mark.parametrize(
+    "keyword",
+    [
+        "DROP",
+        "DELETE",
+        "INSERT",
+        "UPDATE",
+        "ALTER",
+        "TRUNCATE",
+        "CREATE",
+        "GRANT",
+        "REVOKE",
+    ],
+)
 def test_blocks_forbidden_keyword(keyword: str) -> None:
     """All mutation keywords must be blocked."""
     with pytest.raises(ForbiddenQueryError) as exc_info:
@@ -29,12 +33,15 @@ def test_blocks_forbidden_keyword(keyword: str) -> None:
     assert exc_info.value.keyword == keyword
 
 
-@pytest.mark.parametrize("keyword", [
-    "drop",
-    "Delete",
-    "INSERT",
-    "uPdAtE",
-])
+@pytest.mark.parametrize(
+    "keyword",
+    [
+        "drop",
+        "Delete",
+        "INSERT",
+        "uPdAtE",
+    ],
+)
 def test_blocks_forbidden_keyword_case_insensitive(keyword: str) -> None:
     """Keyword blocking must be case-insensitive."""
     with pytest.raises(ForbiddenQueryError):
@@ -43,12 +50,16 @@ def test_blocks_forbidden_keyword_case_insensitive(keyword: str) -> None:
 
 # --- Forbidden patterns ---
 
-@pytest.mark.parametrize("pattern,query", [
-    ("INTO OUTFILE", "SELECT * FROM users INTO OUTFILE '/tmp/out.csv'"),
-    ("LOAD DATA", "LOAD DATA INFILE '/tmp/in.csv' INTO TABLE users"),
-    ("CREATE TEMP", "CREATE TEMP TABLE tmp AS SELECT * FROM users"),
-    ("CALL ", "CALL stored_proc()"),
-])
+
+@pytest.mark.parametrize(
+    "pattern,query",
+    [
+        ("INTO OUTFILE", "SELECT * FROM users INTO OUTFILE '/tmp/out.csv'"),
+        ("LOAD DATA", "LOAD DATA INFILE '/tmp/in.csv' INTO TABLE users"),
+        ("CREATE TEMP", "CREATE TEMP TABLE tmp AS SELECT * FROM users"),
+        ("CALL ", "CALL stored_proc()"),
+    ],
+)
 def test_blocks_forbidden_pattern(pattern: str, query: str) -> None:
     """Multi-word forbidden patterns must be blocked."""
     with pytest.raises(ForbiddenQueryError) as exc_info:
@@ -58,21 +69,26 @@ def test_blocks_forbidden_pattern(pattern: str, query: str) -> None:
 
 # --- Allowed query types ---
 
-@pytest.mark.parametrize("sql", [
-    "SELECT * FROM users",
-    "SELECT id, email FROM users WHERE id = 1",
-    "SHOW TABLES",
-    "SHOW DATABASES",
-    "DESCRIBE users",
-    "EXPLAIN SELECT * FROM orders WHERE user_id = 42",
-    "WITH cte AS (SELECT id FROM users) SELECT * FROM cte",
-])
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT * FROM users",
+        "SELECT id, email FROM users WHERE id = 1",
+        "SHOW TABLES",
+        "SHOW DATABASES",
+        "DESCRIBE users",
+        "EXPLAIN SELECT * FROM orders WHERE user_id = 42",
+        "WITH cte AS (SELECT id FROM users) SELECT * FROM cte",
+    ],
+)
 def test_allows_safe_queries(sql: str) -> None:
     """Safe queries must pass validation without raising."""
     validate_query(sql)  # should not raise
 
 
 # --- Comment bypass prevention ---
+
 
 def test_blocks_keyword_hidden_in_comment_context() -> None:
     """DROP after comment stripping must still be caught."""

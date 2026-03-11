@@ -2,8 +2,6 @@
 
 import time
 
-import pytest
-
 from dbsage.cache.schema_cache import cache_get, cache_invalidate, cache_set
 
 

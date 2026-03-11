@@ -161,8 +161,7 @@ def search_schema_by_meaning(query: str) -> str:
                     lines.append(f"              tags: {tags}")
             case "column":
                 lines.append(
-                    f"[column]      {r['table']}.{r['column']}"
-                    f" — {r['description']}"
+                    f"[column]      {r['table']}.{r['column']} — {r['description']}"
                 )
         lines.append("")
 
