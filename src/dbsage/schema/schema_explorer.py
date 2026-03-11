@@ -59,8 +59,7 @@ async def get_foreign_keys(
         return cached
 
     where = (
-        "WHERE kcu.TABLE_SCHEMA = DATABASE()"
-        " AND kcu.REFERENCED_TABLE_NAME IS NOT NULL"
+        "WHERE kcu.TABLE_SCHEMA = DATABASE() AND kcu.REFERENCED_TABLE_NAME IS NOT NULL"
     )
     if table_name:
         where += (
@@ -78,7 +77,7 @@ async def get_foreign_keys(
         FROM information_schema.KEY_COLUMN_USAGE kcu
         {where}
         ORDER BY kcu.TABLE_NAME, kcu.COLUMN_NAME
-    """  # noqa: S608
+    """  # noqa: S608  # nosec B608
     result = await execute_query(sql, engine, timeout_ms)
     cache_set(cache_key, result, ttl_seconds)
     return result
@@ -142,7 +141,7 @@ async def describe_table(
         WHERE TABLE_SCHEMA = DATABASE()
           AND TABLE_NAME = '{table_name}'
         ORDER BY ORDINAL_POSITION
-    """  # noqa: S608 — table_name is validated by caller (blacklist check)
+    """  # noqa: S608  # nosec B608 — table_name is validated by caller (blacklist check)
     result = await execute_query(sql, engine, timeout_ms)
     cache_set(cache_key, result, ttl_seconds)
     return result

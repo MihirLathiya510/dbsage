@@ -2,7 +2,12 @@
 
 from dbsage.cache.schema_cache import cache_get, cache_set
 from dbsage.exceptions import TableBlacklistedError
-from dbsage.formatting.table_formatter import format_column_list
+from dbsage.formatting.table_formatter import (
+    format_column_list_v2,
+    format_relationships,
+    format_section,
+    section_header,
+)
 from dbsage.mcp_server.dependencies import get_app_settings, get_db_engine
 from dbsage.mcp_server.server import mcp
 from dbsage.schema.schema_explorer import (
@@ -26,6 +31,7 @@ async def describe_table(table_name: str) -> str:
     """
     settings = get_app_settings()
     engine = get_db_engine()
+    header = section_header("describe_table", table_name)
 
     blacklisted = {t.lower() for t in settings.blacklisted_tables}
     if table_name.lower() in blacklisted:
@@ -37,10 +43,10 @@ async def describe_table(table_name: str) -> str:
     fks = await get_foreign_keys(
         engine, table_name=table_name, timeout_ms=settings.query_timeout_ms
     )
-    fk_map = {
-        fk["from_column"]: f"{fk['to_table']}.{fk['to_column']}" for fk in fks
-    }
-    return format_column_list(columns, fk_map=fk_map)
+    fk_map = {fk["from_column"]: f"{fk['to_table']}.{fk['to_column']}" for fk in fks}
+
+    body = format_column_list_v2(columns, fk_map=fk_map, table_name=table_name)
+    return f"{header}\n\n{body}"
 
 
 @mcp.tool()
@@ -59,6 +65,8 @@ async def table_relationships(table_name: str = "") -> str:
 
     blacklisted = {t.lower() for t in settings.blacklisted_tables}
     target = table_name.strip() or None
+    subtitle = target or ""
+    header = section_header("table_relationships", subtitle)
 
     if target and target.lower() in blacklisted:
         raise TableBlacklistedError(target)
@@ -71,23 +79,26 @@ async def table_relationships(table_name: str = "") -> str:
 
     if not fks:
         scope = f"'{target}'" if target else "this database"
-        return f"(no foreign key relationships found for {scope})"
+        return f"{header}\n\n  (no foreign key relationships found for {scope})"
 
     # Filter out relationships where either side is blacklisted
     visible = [
-        fk for fk in fks
+        fk
+        for fk in fks
         if fk["from_table"].lower() not in blacklisted
         and fk["to_table"].lower() not in blacklisted
     ]
 
     if not visible:
-        return "(no visible relationships — all related tables are blacklisted)"
+        return (
+            f"{header}\n\n"
+            "  (no visible relationships — all related tables are blacklisted)"
+        )
 
-    lines = [
-        f"{fk['from_table']}.{fk['from_column']} → {fk['to_table']}.{fk['to_column']}"
-        for fk in visible
-    ]
-    return "\n".join(lines)
+    body = format_relationships(visible)
+    count = len(visible)
+    rel_word = "relationship" if count == 1 else "relationships"
+    return f"{header}\n\n{body}\n\n  {count} {rel_word}"
 
 
 @mcp.tool()
@@ -111,13 +122,13 @@ async def schema_summary() -> str:
     visible_tables = [t for t in tables if t["table_name"].lower() not in blacklisted]
 
     if not visible_tables:
-        return "(no tables found)"
+        return section_header("schema_summary") + "\n\n  (no tables found)"
 
-    lines: list[str] = ["=== Database Summary ===", ""]
+    header = section_header("schema_summary")
+    sections: list[str] = [header, ""]
 
     # Tables section
-    lines.append("Tables")
-    lines.append("------")
+    table_lines: list[str] = []
     for t in visible_tables:
         count = t["row_count"] or 0
         size = t["size_mb"] or 0.0
@@ -127,26 +138,26 @@ async def schema_summary() -> str:
             count_str = f"{count / 1_000:.1f}k rows"
         else:
             count_str = f"{count} rows"
-        lines.append(f"  {t['table_name']:<40} {count_str:<15} {size} MB")
+        table_lines.append(f"  {t['table_name']:<40} {count_str:<15} {size} MB")
+
+    sections.append(
+        format_section(f"Tables ({len(visible_tables)})", "\n".join(table_lines))
+    )
 
     # Relationships section
     visible_fks = [
-        fk for fk in fks
+        fk
+        for fk in fks
         if fk["from_table"].lower() not in blacklisted
         and fk["to_table"].lower() not in blacklisted
     ]
 
     if visible_fks:
-        lines.append("")
-        lines.append("Relationships")
-        lines.append("-------------")
-        for fk in visible_fks:
-            lines.append(
-                f"  {fk['from_table']}.{fk['from_column']}"
-                f" → {fk['to_table']}.{fk['to_column']}"
-            )
+        rel_body = format_relationships(visible_fks)
+        sections.append("")
+        sections.append(format_section(f"Relationships ({len(visible_fks)})", rel_body))
 
-    result = "\n".join(lines)
+    result = "\n".join(sections)
     cache_set("schema_summary", result, settings.cache_ttl_seconds)
     return result
 
@@ -154,11 +165,12 @@ async def schema_summary() -> str:
 async def _fetch_summary_data(
     engine: object,
     timeout_ms: int,
-) -> tuple[list[dict], list[dict]]:
+) -> tuple[list[dict], list[dict]]:  # type: ignore[type-arg]
     """Fetch table sizes and foreign keys concurrently."""
     import asyncio
 
     from sqlalchemy.ext.asyncio import AsyncEngine
+
     eng: AsyncEngine = engine  # type: ignore[assignment]
     async with asyncio.TaskGroup() as tg:
         t_task = tg.create_task(get_table_sizes(eng, timeout_ms))

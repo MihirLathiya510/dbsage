@@ -1,5 +1,6 @@
 """Database discovery tools — list and search available tables."""
 
+from dbsage.formatting.table_formatter import format_simple_list, section_header
 from dbsage.mcp_server.dependencies import get_app_settings, get_db_engine
 from dbsage.mcp_server.server import mcp
 from dbsage.schema.schema_explorer import list_tables as _list_tables
@@ -14,6 +15,7 @@ async def list_tables() -> str:
     """
     settings = get_app_settings()
     engine = get_db_engine()
+    header = section_header("list_tables")
 
     all_tables = await _list_tables(engine, timeout_ms=settings.query_timeout_ms)
 
@@ -22,9 +24,12 @@ async def list_tables() -> str:
     visible_tables = [t for t in all_tables if t.lower() not in blacklisted]
 
     if not visible_tables:
-        return "(no tables found)"
+        return f"{header}\n\n  (no tables found)"
 
-    return "\n".join(visible_tables)
+    count = len(visible_tables)
+    table_word = "table" if count == 1 else "tables"
+    body = format_simple_list(visible_tables, footer=f"{count} {table_word}")
+    return f"{header}\n\n{body}"
 
 
 @mcp.tool()
@@ -39,6 +44,7 @@ async def search_tables(keyword: str) -> str:
     """
     settings = get_app_settings()
     engine = get_db_engine()
+    header = section_header("search_tables", f'"{keyword}"')
 
     all_tables = await _list_tables(engine, timeout_ms=settings.query_timeout_ms)
 
@@ -49,6 +55,9 @@ async def search_tables(keyword: str) -> str:
     ]
 
     if not matches:
-        return f"(no tables matching '{keyword}')"
+        return f"{header}\n\n  (no tables matching '{keyword}')"
 
-    return "\n".join(matches)
+    count = len(matches)
+    match_word = "match" if count == 1 else "matches"
+    body = format_simple_list(matches, footer=f"{count} {match_word}")
+    return f"{header}\n\n{body}"

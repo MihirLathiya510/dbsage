@@ -12,13 +12,21 @@ from dbsage.mcp_server.config import Settings
 
 
 def _settings(**kwargs: object) -> Settings:
-    defaults = dict(
-        db_host="localhost", db_port=3306, db_name="db",
-        db_user="u", db_password="p", db_type="mysql",
-        max_query_rows=100, query_timeout_ms=3000,
-        slow_query_threshold_ms=2000, default_sample_limit=10,
-        cache_ttl_seconds=300, blacklisted_tables=[], dev_mode=False,
-    )
+    defaults: dict[str, object] = {
+        "db_host": "localhost",
+        "db_port": 3306,
+        "db_name": "db",
+        "db_user": "u",
+        "db_password": "p",
+        "db_type": "mysql",
+        "max_query_rows": 100,
+        "query_timeout_ms": 3000,
+        "slow_query_threshold_ms": 2000,
+        "default_sample_limit": 10,
+        "cache_ttl_seconds": 300,
+        "blacklisted_tables": [],
+        "dev_mode": False,
+    }
     defaults.update(kwargs)
     return Settings(**defaults)  # type: ignore[arg-type]
 
@@ -35,6 +43,7 @@ def _patch_deps(settings: Settings) -> tuple:
 
 
 # ── discovery_tools ──────────────────────────────────────────────────────────
+
 
 async def test_list_tables_returns_visible_tables() -> None:
     from dbsage.tools.discovery_tools import list_tables
@@ -112,26 +121,51 @@ async def test_search_tables_no_match_returns_message() -> None:
 
 # ── schema_tools ─────────────────────────────────────────────────────────────
 
+
 async def test_describe_table_formats_columns() -> None:
     from dbsage.tools.schema_tools import describe_table
 
     settings = _settings()
     p_s, p_e, _ = _patch_deps(settings)
     cols = [
-        {"column_name": "id", "data_type": "int", "is_nullable": "NO",
-         "column_key": "PRI", "column_default": None, "extra": "auto_increment"},
-        {"column_name": "org_id", "data_type": "bigint", "is_nullable": "NO",
-         "column_key": "MUL", "column_default": None, "extra": ""},
+        {
+            "column_name": "id",
+            "data_type": "int",
+            "is_nullable": "NO",
+            "column_key": "PRI",
+            "column_default": None,
+            "extra": "auto_increment",
+        },
+        {
+            "column_name": "org_id",
+            "data_type": "bigint",
+            "is_nullable": "NO",
+            "column_key": "MUL",
+            "column_default": None,
+            "extra": "",
+        },
     ]
-    fks = [{"from_table": "users", "from_column": "org_id",
-            "to_table": "Organizations", "to_column": "id", "constraint_name": "fk1"}]
+    fks = [
+        {
+            "from_table": "users",
+            "from_column": "org_id",
+            "to_table": "Organizations",
+            "to_column": "id",
+            "constraint_name": "fk1",
+        }
+    ]
     with p_s, p_e:
-        with patch("dbsage.tools.schema_tools._describe_table", AsyncMock(return_value=cols)):
-            with patch("dbsage.tools.schema_tools.get_foreign_keys", AsyncMock(return_value=fks)):
+        with patch(
+            "dbsage.tools.schema_tools._describe_table", AsyncMock(return_value=cols)
+        ):
+            with patch(
+                "dbsage.tools.schema_tools.get_foreign_keys",
+                AsyncMock(return_value=fks),
+            ):
                 result = await describe_table("users")
     assert "id" in result
     assert "PK" in result
-    assert "IDX → Organizations.id" in result
+    assert "FK → Organizations.id" in result
 
 
 async def test_describe_table_raises_on_blacklisted() -> None:
@@ -150,15 +184,24 @@ async def test_table_relationships_formats_fks() -> None:
 
     settings = _settings()
     p_s, p_e, _ = _patch_deps(settings)
-    fks = [{"from_table": "orders", "from_column": "user_id",
-            "to_table": "users", "to_column": "id", "constraint_name": "fk1"}]
+    fks = [
+        {
+            "from_table": "orders",
+            "from_column": "user_id",
+            "to_table": "users",
+            "to_column": "id",
+            "constraint_name": "fk1",
+        }
+    ]
     with p_s, p_e:
         with patch(
             "dbsage.tools.schema_tools.get_foreign_keys",
             AsyncMock(return_value=fks),
         ):
             result = await table_relationships()
-    assert "orders.user_id → users.id" in result
+    assert "orders.user_id" in result
+    assert "users.id" in result
+    assert "→" in result
 
 
 async def test_table_relationships_no_fks() -> None:
@@ -181,13 +224,26 @@ async def test_schema_summary_shows_tables_and_relationships() -> None:
     settings = _settings()
     p_s, p_e, _ = _patch_deps(settings)
     tables = [{"table_name": "users", "row_count": 1000, "size_mb": 0.5}]
-    fks = [{"from_table": "orders", "from_column": "user_id",
-            "to_table": "users", "to_column": "id", "constraint_name": "fk1"}]
+    fks = [
+        {
+            "from_table": "orders",
+            "from_column": "user_id",
+            "to_table": "users",
+            "to_column": "id",
+            "constraint_name": "fk1",
+        }
+    ]
     with p_s, p_e:
         with patch("dbsage.tools.schema_tools.cache_get", return_value=None):
             with patch("dbsage.tools.schema_tools.cache_set"):
-                with patch("dbsage.tools.schema_tools.get_table_sizes", AsyncMock(return_value=tables)):
-                    with patch("dbsage.tools.schema_tools.get_foreign_keys", AsyncMock(return_value=fks)):
+                with patch(
+                    "dbsage.tools.schema_tools.get_table_sizes",
+                    AsyncMock(return_value=tables),
+                ):
+                    with patch(
+                        "dbsage.tools.schema_tools.get_foreign_keys",
+                        AsyncMock(return_value=fks),
+                    ):
                         result = await schema_summary()
     assert "users" in result
     assert "Relationships" in result
@@ -199,12 +255,15 @@ async def test_schema_summary_returns_cached_result() -> None:
     settings = _settings()
     p_s, p_e, _ = _patch_deps(settings)
     with p_s, p_e:
-        with patch("dbsage.tools.schema_tools.cache_get", return_value="cached summary"):
+        with patch(
+            "dbsage.tools.schema_tools.cache_get", return_value="cached summary"
+        ):
             result = await schema_summary()
     assert result == "cached summary"
 
 
 # ── query_tools ──────────────────────────────────────────────────────────────
+
 
 async def test_run_read_only_query_returns_table() -> None:
     from dbsage.tools.query_tools import run_read_only_query
@@ -213,7 +272,9 @@ async def test_run_read_only_query_returns_table() -> None:
     p_s, p_e, _ = _patch_deps(settings)
     rows = [{"id": 1, "name": "alice"}]
     with p_s, p_e:
-        with patch("dbsage.tools.query_tools.execute_query", AsyncMock(return_value=rows)):
+        with patch(
+            "dbsage.tools.query_tools.execute_query", AsyncMock(return_value=rows)
+        ):
             with patch("dbsage.tools.query_tools.log_query_executed", AsyncMock()):
                 result = await run_read_only_query("SELECT * FROM users")
     assert "alice" in result
@@ -228,7 +289,7 @@ async def test_run_read_only_query_blocks_forbidden() -> None:
     with p_s, p_e:
         with patch("dbsage.tools.query_tools.log_query_rejected", AsyncMock()):
             result = await run_read_only_query("DROP TABLE users")
-    assert "Error" in result
+    assert "✗" in result or "blocked" in result.lower()
     assert "DROP" in result
 
 
@@ -256,10 +317,21 @@ async def test_explain_query_returns_plan() -> None:
 
     settings = _settings()
     p_s, p_e, _ = _patch_deps(settings)
-    plan = [{"id": 1, "select_type": "SIMPLE", "table": "users", "type": "ALL",
-             "key": None, "rows": 4, "Extra": ""}]
+    plan = [
+        {
+            "id": 1,
+            "select_type": "SIMPLE",
+            "table": "users",
+            "type": "ALL",
+            "key": None,
+            "rows": 4,
+            "Extra": "",
+        }
+    ]
     with p_s, p_e:
-        with patch("dbsage.tools.query_tools.execute_query", AsyncMock(return_value=plan)):
+        with patch(
+            "dbsage.tools.query_tools.execute_query", AsyncMock(return_value=plan)
+        ):
             result = await explain_query("SELECT * FROM users")
     assert "SIMPLE" in result
 
@@ -271,10 +343,11 @@ async def test_explain_query_blocks_forbidden() -> None:
     p_s, p_e, _ = _patch_deps(settings)
     with p_s, p_e:
         result = await explain_query("DROP TABLE users")
-    assert "Error" in result
+    assert "✗" in result or "blocked" in result.lower()
 
 
 # ── sampling_tools ────────────────────────────────────────────────────────────
+
 
 async def test_sample_table_returns_rows() -> None:
     from dbsage.tools.sampling_tools import sample_table
@@ -283,7 +356,9 @@ async def test_sample_table_returns_rows() -> None:
     p_s, p_e, _ = _patch_deps(settings)
     rows = [{"id": 1, "email": "a@b.com"}]
     with p_s, p_e:
-        with patch("dbsage.tools.sampling_tools.execute_query", AsyncMock(return_value=rows)):
+        with patch(
+            "dbsage.tools.sampling_tools.execute_query", AsyncMock(return_value=rows)
+        ):
             result = await sample_table("users", limit=1)
     assert "email" in result
     assert "a@b.com" in result
@@ -307,7 +382,9 @@ async def test_sample_column_values_returns_values() -> None:
     p_s, p_e, _ = _patch_deps(settings)
     rows = [{"value": "active", "count": 50}, {"value": "inactive", "count": 10}]
     with p_s, p_e:
-        with patch("dbsage.tools.sampling_tools.execute_query", AsyncMock(return_value=rows)):
+        with patch(
+            "dbsage.tools.sampling_tools.execute_query", AsyncMock(return_value=rows)
+        ):
             result = await sample_column_values("users", "status")
     assert "active" in result
     assert "50" in result
@@ -320,13 +397,16 @@ async def test_table_row_count_formats_human_readable() -> None:
     p_s, p_e, _ = _patch_deps(settings)
     rows = [{"row_count": 1_500_000}]
     with p_s, p_e:
-        with patch("dbsage.tools.sampling_tools.execute_query", AsyncMock(return_value=rows)):
+        with patch(
+            "dbsage.tools.sampling_tools.execute_query", AsyncMock(return_value=rows)
+        ):
             result = await table_row_count("users")
     assert "1.5M" in result
 
 
 async def test_inspect_json_column_parses_json() -> None:
     import json
+
     from dbsage.tools.sampling_tools import inspect_json_column
 
     settings = _settings()
@@ -334,7 +414,9 @@ async def test_inspect_json_column_parses_json() -> None:
     payload = json.dumps({"key": "value", "nested": {"x": 1}})
     rows = [{"json_value": payload}]
     with p_s, p_e:
-        with patch("dbsage.tools.sampling_tools.execute_query", AsyncMock(return_value=rows)):
+        with patch(
+            "dbsage.tools.sampling_tools.execute_query", AsyncMock(return_value=rows)
+        ):
             result = await inspect_json_column("users", "metadata")
     assert "key" in result
     assert "value" in result

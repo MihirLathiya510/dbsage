@@ -8,7 +8,12 @@ from typing import Any
 
 from dbsage.db.query_executor import execute_query
 from dbsage.exceptions import TableBlacklistedError
-from dbsage.formatting.table_formatter import format_as_table
+from dbsage.formatting.table_formatter import (
+    format_column_values,
+    format_json_samples,
+    format_results_table,
+    section_header,
+)
 from dbsage.mcp_server.dependencies import get_app_settings, get_db_engine
 from dbsage.mcp_server.server import mcp
 
@@ -27,6 +32,7 @@ async def sample_table(table_name: str, limit: int = 0) -> str:
     """
     settings = get_app_settings()
     engine = get_db_engine()
+    header = section_header("sample_table", table_name)
 
     blacklisted = {t.lower() for t in settings.blacklisted_tables}
     if table_name.lower() in blacklisted:
@@ -35,9 +41,16 @@ async def sample_table(table_name: str, limit: int = 0) -> str:
     max_rows = settings.max_query_rows
     effective_limit = limit if 1 <= limit <= max_rows else settings.default_sample_limit
 
-    sql = f"SELECT * FROM `{table_name}` LIMIT {effective_limit}"  # noqa: S608
+    sql = f"SELECT * FROM `{table_name}` LIMIT {effective_limit}"  # noqa: S608  # nosec B608
     rows = await execute_query(sql, engine, timeout_ms=settings.query_timeout_ms)
-    return format_as_table(rows)
+
+    if not rows:
+        return f"{header}\n\n  (no rows found)"
+
+    table = format_results_table(rows)
+    n = len(rows)
+    row_word = "row" if n == 1 else "rows"
+    return f"{header}\n\n{table}\n\n  {n} {row_word}"
 
 
 @mcp.tool()
@@ -56,6 +69,7 @@ async def sample_column_values(
     """
     settings = get_app_settings()
     engine = get_db_engine()
+    header = section_header("sample_column_values", f"{table_name}.{column_name}")
 
     blacklisted = {t.lower() for t in settings.blacklisted_tables}
     if table_name.lower() in blacklisted:
@@ -64,7 +78,7 @@ async def sample_column_values(
     effective_limit = min(max(1, limit), settings.max_query_rows)
 
     sql = (
-        f"SELECT DISTINCT `{column_name}` AS value, COUNT(*) AS count"  # noqa: S608
+        f"SELECT DISTINCT `{column_name}` AS value, COUNT(*) AS count"  # noqa: S608  # nosec B608
         f" FROM `{table_name}`"
         f" GROUP BY `{column_name}`"
         f" ORDER BY count DESC"
@@ -73,10 +87,12 @@ async def sample_column_values(
     rows = await execute_query(sql, engine, timeout_ms=settings.query_timeout_ms)
 
     if not rows:
-        return f"(no values found in {table_name}.{column_name})"
+        return f"{header}\n\n  (no values found in {table_name}.{column_name})"
 
-    lines = [f"{row['value']}  ({row['count']} rows)" for row in rows]
-    return "\n".join(lines)
+    body = format_column_values(rows)
+    n = len(rows)
+    val_word = "distinct value" if n == 1 else "distinct values"
+    return f"{header}\n\n{body}\n\n  {n} {val_word}"
 
 
 @mcp.tool()
@@ -91,6 +107,7 @@ async def table_row_count(table_name: str) -> str:
     """
     settings = get_app_settings()
     engine = get_db_engine()
+    header = section_header("table_row_count", table_name)
 
     blacklisted = {t.lower() for t in settings.blacklisted_tables}
     if table_name.lower() in blacklisted:
@@ -101,11 +118,13 @@ async def table_row_count(table_name: str) -> str:
         FROM information_schema.TABLES
         WHERE TABLE_SCHEMA = DATABASE()
           AND TABLE_NAME = '{table_name}'
-    """  # noqa: S608
+    """  # noqa: S608  # nosec B608
     rows = await execute_query(sql, engine, timeout_ms=settings.query_timeout_ms)
 
     if not rows or rows[0]["row_count"] is None:
-        return f"(table '{table_name}' not found or row count unavailable)"
+        return (
+            f"{header}\n\n  (table '{table_name}' not found or row count unavailable)"
+        )
 
     count = int(rows[0]["row_count"])
     if count >= 1_000_000:
@@ -115,7 +134,7 @@ async def table_row_count(table_name: str) -> str:
     else:
         human = str(count)
 
-    return f"{table_name}: ~{human} rows"
+    return f"{header}\n\n  {table_name}: ~{human} rows"
 
 
 @mcp.tool()
@@ -132,6 +151,7 @@ async def inspect_json_column(table_name: str, column_name: str, limit: int = 5)
     """
     settings = get_app_settings()
     engine = get_db_engine()
+    header = section_header("inspect_json_column", f"{table_name}.{column_name}")
 
     blacklisted = {t.lower() for t in settings.blacklisted_tables}
     if table_name.lower() in blacklisted:
@@ -140,7 +160,7 @@ async def inspect_json_column(table_name: str, column_name: str, limit: int = 5)
     effective_limit = min(max(1, limit), 20)
 
     sql = (
-        f"SELECT `{column_name}` AS json_value"  # noqa: S608
+        f"SELECT `{column_name}` AS json_value"  # noqa: S608  # nosec B608
         f" FROM `{table_name}`"
         f" WHERE `{column_name}` IS NOT NULL"
         f" LIMIT {effective_limit}"
@@ -148,16 +168,17 @@ async def inspect_json_column(table_name: str, column_name: str, limit: int = 5)
     rows = await execute_query(sql, engine, timeout_ms=settings.query_timeout_ms)
 
     if not rows:
-        return f"(no non-null values found in {table_name}.{column_name})"
+        return f"{header}\n\n  (no non-null values found in {table_name}.{column_name})"
 
-    samples: list[str] = []
-    for i, row in enumerate(rows, 1):
-        raw = row["json_value"]
+    json_strings: list[str] = []
+    for row in rows:
+        raw: Any = row["json_value"]
         try:
             parsed: Any = json.loads(raw) if isinstance(raw, str) else raw
             formatted = json.dumps(parsed, indent=2, default=str)
         except (json.JSONDecodeError, TypeError):
             formatted = str(raw)
-        samples.append(f"--- Sample {i} ---\n{formatted}")
+        json_strings.append(formatted)
 
-    return "\n\n".join(samples)
+    body = format_json_samples(json_strings)
+    return f"{header}\n\n{body}"

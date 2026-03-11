@@ -2,22 +2,20 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from dbsage.db.connection_pool import build_engine, get_engine
 from dbsage.mcp_server.config import Settings
 
 
 def _make_settings(**kwargs: object) -> Settings:
-    defaults = dict(
-        db_host="localhost",
-        db_port=3306,
-        db_name="testdb",
-        db_user="admin",
-        db_password="secret",
-        db_type="mysql",
-        cache_ttl_seconds=300,
-    )
+    defaults: dict[str, object] = {
+        "db_host": "localhost",
+        "db_port": 3306,
+        "db_name": "testdb",
+        "db_user": "admin",
+        "db_password": "secret",
+        "db_type": "mysql",
+        "cache_ttl_seconds": 300,
+    }
     defaults.update(kwargs)
     return Settings(**defaults)  # type: ignore[arg-type]
 
@@ -59,6 +57,7 @@ def test_get_engine_returns_singleton() -> None:
     with patch("dbsage.db.connection_pool.build_engine", return_value=mock_eng):
         with patch("dbsage.db.connection_pool._engine", None):
             import dbsage.db.connection_pool as pool_module
+
             pool_module._engine = None  # reset singleton
             e1 = get_engine(settings)
             e2 = get_engine(settings)
