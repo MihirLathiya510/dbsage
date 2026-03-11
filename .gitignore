@@ -37,3 +37,7 @@ CLAUDE.md
 ARCHITECTURE.md
 MCP_TOOL_SPEC.md
 REPO_STRUCTURE.md
+
+# Local config — copy from *.example.json and fill in your own values
+config/semantic_schema.json
+config/blacklist_tables.json

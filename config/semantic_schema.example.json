@@ -1,0 +1,56 @@
+{
+  "database": {
+    "name": "your_database_name",
+    "description": "Brief description of what this database represents.",
+    "domain": "your business domain (e.g. e-commerce, fintech, SaaS)",
+    "core_workflow": "Describe the main workflow: Entity A → Event B → Outcome C"
+  },
+
+  "vocabulary": {
+    "synonym_for_table": "ActualTableName",
+    "customer": "Users",
+    "purchase": "Orders",
+    "item": "Products"
+  },
+
+  "tables": {
+    "Users": {
+      "description": "Authenticated platform users. Each user belongs to an organization.",
+      "tags": ["core", "auth"],
+      "columns": {
+        "id": "Unique user identifier (UUID)",
+        "email": "User's login email",
+        "created_at": "Account creation timestamp"
+      },
+      "common_queries": [
+        "SELECT * FROM Users LIMIT 20"
+      ]
+    },
+    "Orders": {
+      "description": "Purchase transactions placed by users.",
+      "tags": ["core", "transaction"],
+      "columns": {
+        "id": "Unique order identifier",
+        "user_id": "FK to Users — who placed the order",
+        "total": "Order value in USD",
+        "created_at": "Order timestamp"
+      },
+      "common_queries": [
+        "SELECT * FROM Orders ORDER BY created_at DESC LIMIT 20"
+      ]
+    }
+  },
+
+  "common_analytics": [
+    {
+      "name": "Recent records",
+      "description": "Latest rows in the main table",
+      "sql": "SELECT * FROM your_main_table ORDER BY created_at DESC LIMIT 20"
+    },
+    {
+      "name": "Row counts by category",
+      "description": "Distribution across a key dimension",
+      "sql": "SELECT category_col, COUNT(*) as count FROM your_table GROUP BY category_col ORDER BY count DESC"
+    }
+  ]
+}
