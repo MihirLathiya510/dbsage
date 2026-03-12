@@ -20,6 +20,7 @@ def _settings(**kwargs: object) -> Settings:
         "db_password": "p",
         "db_type": "mysql",
         "max_query_rows": 100,
+        "max_query_rows_hard_cap": 500,
         "query_timeout_ms": 3000,
         "slow_query_threshold_ms": 2000,
         "default_sample_limit": 10,
@@ -420,3 +421,114 @@ async def test_inspect_json_column_parses_json() -> None:
             result = await inspect_json_column("users", "metadata")
     assert "key" in result
     assert "value" in result
+
+
+# ── show_create_view ──────────────────────────────────────────────────────────
+
+
+async def test_show_create_view_returns_full_sql() -> None:
+    from dbsage.tools.schema_tools import show_create_view
+
+    settings = _settings()
+    p_s, p_e, _ = _patch_deps(settings)
+    long_sql = "CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`%` SQL SECURITY DEFINER VIEW `v` AS SELECT id, name FROM users WHERE active = 1 ORDER BY created_at DESC"
+    rows = [
+        {
+            "View": "v",
+            "Create View": long_sql,
+            "character_set_client": "utf8mb4",
+            "collation_connection": "utf8mb4_unicode_ci",
+        }
+    ]
+    with p_s, p_e:
+        with patch(
+            "dbsage.tools.schema_tools.execute_query", AsyncMock(return_value=rows)
+        ):
+            result = await show_create_view("v")
+    assert long_sql in result
+    assert "show_create_view" in result
+    assert "utf8mb4" in result
+
+
+async def test_show_create_view_raises_on_blacklisted() -> None:
+    from dbsage.exceptions import TableBlacklistedError
+    from dbsage.tools.schema_tools import show_create_view
+
+    settings = _settings(blacklisted_tables=["secret_view"])
+    p_s, p_e, _ = _patch_deps(settings)
+    with p_s, p_e:
+        with pytest.raises(TableBlacklistedError):
+            await show_create_view("secret_view")
+
+
+async def test_show_create_view_not_found() -> None:
+    from dbsage.tools.schema_tools import show_create_view
+
+    settings = _settings()
+    p_s, p_e, _ = _patch_deps(settings)
+    with p_s, p_e:
+        with patch(
+            "dbsage.tools.schema_tools.execute_query", AsyncMock(return_value=[])
+        ):
+            result = await show_create_view("nonexistent_view")
+    assert "not found" in result
+
+
+# ── run_read_only_query limit parameter ───────────────────────────────────────
+
+
+async def test_run_read_only_query_uses_explicit_limit() -> None:
+    from dbsage.tools.query_tools import run_read_only_query
+
+    settings = _settings(max_query_rows=100, max_query_rows_hard_cap=500)
+    p_s, p_e, _ = _patch_deps(settings)
+    captured: list[str] = []
+
+    async def mock_execute(sql: str, *args: object, **kwargs: object) -> list:
+        captured.append(sql)
+        return []
+
+    with p_s, p_e:
+        with patch("dbsage.tools.query_tools.execute_query", mock_execute):
+            with patch("dbsage.tools.query_tools.log_query_executed", AsyncMock()):
+                await run_read_only_query("SELECT * FROM users", limit=25)
+
+    assert "LIMIT 25" in captured[0]
+
+
+async def test_run_read_only_query_clamps_limit_to_hard_cap() -> None:
+    from dbsage.tools.query_tools import run_read_only_query
+
+    settings = _settings(max_query_rows=100, max_query_rows_hard_cap=50)
+    p_s, p_e, _ = _patch_deps(settings)
+    captured: list[str] = []
+
+    async def mock_execute(sql: str, *args: object, **kwargs: object) -> list:
+        captured.append(sql)
+        return []
+
+    with p_s, p_e:
+        with patch("dbsage.tools.query_tools.execute_query", mock_execute):
+            with patch("dbsage.tools.query_tools.log_query_executed", AsyncMock()):
+                await run_read_only_query("SELECT * FROM users", limit=200)
+
+    assert "LIMIT 50" in captured[0]
+
+
+async def test_run_read_only_query_default_limit_unchanged() -> None:
+    from dbsage.tools.query_tools import run_read_only_query
+
+    settings = _settings(max_query_rows=100, max_query_rows_hard_cap=500)
+    p_s, p_e, _ = _patch_deps(settings)
+    captured: list[str] = []
+
+    async def mock_execute(sql: str, *args: object, **kwargs: object) -> list:
+        captured.append(sql)
+        return []
+
+    with p_s, p_e:
+        with patch("dbsage.tools.query_tools.execute_query", mock_execute):
+            with patch("dbsage.tools.query_tools.log_query_executed", AsyncMock()):
+                await run_read_only_query("SELECT * FROM users")
+
+    assert "LIMIT 100" in captured[0]
