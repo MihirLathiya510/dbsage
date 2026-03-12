@@ -31,7 +31,8 @@ class Settings(BaseSettings):
     db_type: str = "mysql"  # "mysql" or "postgresql"
 
     # Safety guardrails
-    max_query_rows: int = 100
+    max_query_rows: int = 100  # default LIMIT injected when query has none
+    max_query_rows_hard_cap: int = 500  # ceiling when LLM requests a specific limit
     query_timeout_ms: int = 3000
     slow_query_threshold_ms: int = 2000
     default_sample_limit: int = 10
