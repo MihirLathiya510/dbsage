@@ -1,159 +1,74 @@
 <div align="center">
-  <img src="assets/logo.png" alt="dbsage logo" width="250" />
+  <img src="assets/logo.png" alt="dbsage logo" width="220" />
 
 # dbsage
 
-**AI Database Copilot** — a production-grade [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that gives LLMs safe, structured, read-only access to relational databases.
+**AI Database Copilot** — a production-grade [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that gives LLMs safe, structured, read-only access to any MySQL or PostgreSQL database.
+
+![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
+![MCP Compatible](https://img.shields.io/badge/MCP-compatible-green)
+![License MIT](https://img.shields.io/badge/license-MIT-lightgrey)
 
 </div>
 
-Connect Claude Code, Cursor, or any MCP-compatible AI tool directly to your MySQL or PostgreSQL database. The server enforces strict read-only guarantees, injects query limits, caches schema metadata, and provides business-context annotations so the LLM understands your database without guessing.
-
 ---
 
-## Features
+## See it in action
 
-| Capability | Details |
-|---|---|
-| **Read-only safety** | Blocks INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, CREATE, GRANT, REVOKE at the validator level |
-| **Automatic LIMIT injection** | Queries without a LIMIT get one added automatically (default 100 rows) |
-| **Query timeout** | Every query runs under a configurable timeout (default 10 s) |
-| **Schema caching** | Table lists, column definitions, and FK relationships cached with TTL (default 5 min) |
-| **Table blacklisting** | Hide sensitive tables from the LLM via env var or JSON config |
-| **Semantic layer** | Attach business descriptions, column meanings, and vocabulary to your schema |
-| **Structured logging** | JSON logs in production, human-readable in dev mode |
-| **MySQL + PostgreSQL** | Async drivers (aiomysql / asyncpg) via SQLAlchemy 2.0 |
+> A user asks Claude: _"How many deals are in the pipeline, broken down by type?"_
 
----
+```
+── get_database_context ─────────────────────────────────────────────────────────
 
-## Tools Exposed to the LLM
+  Domain: commercial real estate lending
+  Vocabulary: deal → Deals, loan → Deals, lender → Lenders
+  Workflow: Borrower submits Deal → Lenders review → Term sheet issued → Closed
 
-### Discovery
-| Tool | Description |
-|---|---|
-| `list_tables` | List all visible tables in the database |
-| `search_tables` | Filter tables by keyword |
+── run_read_only_query ──────────────────────────────────────────────────────────
 
-### Schema Inspection
-| Tool | Description |
-|---|---|
-| `describe_table` | Column names, types, keys, and nullability |
-| `table_relationships` | Foreign key relationships for a table or the whole database |
-| `schema_summary` | Full database overview: all tables with row counts, sizes, and FK map |
+  SELECT dt.name AS deal_type, COUNT(d.id) AS count
+  FROM Deals d
+  JOIN DealTypes dt ON d.dealType_id = dt.id
+  GROUP BY dt.id ORDER BY count DESC
 
-### Data Sampling
-| Tool | Description |
-|---|---|
-| `sample_table` | Return N rows from a table |
-| `sample_column_values` | Distinct values with counts for a column |
-| `table_row_count` | Fast approximate row count from `information_schema` |
-| `inspect_json_column` | Pretty-print JSON samples from a JSON/JSONB column |
+  ┏━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┓
+  ┃ deal_type            ┃ count ┃
+  ┡━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━┩
+  │ Bridge Loan          │   142 │
+  │ Construction Loan    │    89 │
+  │ Permanent Financing  │    34 │
+  │ Mezzanine            │    12 │
+  └──────────────────────┴───────┘
 
-### Query Execution
-| Tool | Description |
-|---|---|
-| `run_read_only_query` | Execute a validated, LIMIT-injected SELECT query |
-| `explain_query` | Return the query execution plan (EXPLAIN) |
-
-### Semantic Intelligence
-| Tool | Description |
-|---|---|
-| `get_database_context` | Full business mental model — domain, vocabulary, common analytics |
-| `get_table_semantics` | Business description and column meanings for a specific table |
-| `search_schema_by_meaning` | Find tables/columns by business term (e.g. "lender", "loan") |
-
----
-
-## Requirements
-
-- Python 3.12+
-- [uv](https://docs.astral.sh/uv/) (package manager)
-- MySQL 5.7+ or PostgreSQL 13+
-- Network access to your database (VPN/tunnel if behind a private VPC)
-
----
-
-## Installation
-
-```bash
-git clone https://github.com/your-org/dbsage.git
-cd dbsage
-
-# Install dependencies (creates .venv automatically)
-uv sync
+  4 rows · 28ms
 ```
 
----
-
-## Configuration
-
-Copy the example environment file and fill in your database credentials:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env`:
-
-```env
-# Database connection
-DBSAGE_DB_HOST=your-db-host.rds.amazonaws.com
-DBSAGE_DB_PORT=3306
-DBSAGE_DB_NAME=your_database
-DBSAGE_DB_USER=readonly_user
-DBSAGE_DB_PASSWORD=your_password
-DBSAGE_DB_TYPE=mysql   # or postgresql
-
-# Safety guardrails
-DBSAGE_MAX_QUERY_ROWS=100
-DBSAGE_QUERY_TIMEOUT_MS=3000
-DBSAGE_SLOW_QUERY_THRESHOLD_MS=2000
-DBSAGE_DEFAULT_SAMPLE_LIMIT=10
-
-# Caching
-DBSAGE_CACHE_TTL_SECONDS=300
-
-# Security — tables to hide from the LLM
-DBSAGE_BLACKLISTED_TABLES=["admin_tokens","internal_logs"]
-
-# Logging — true for human-readable output, false for JSON
-DBSAGE_DEV_MODE=true
-```
-
-> **Security note:** The database user should have `SELECT` privileges only. Never use an admin credential.
-
-### Additional blacklist via JSON
-
-You can also manage the blacklist in `config/blacklist_tables.json` (merged with the env var at startup):
-
-```json
-{
-  "blacklisted_tables": ["admin_tokens", "internal_logs", "audit_secrets"]
-}
-```
+> **2 tool calls. No manual schema exploration. No guessing table names.**
+>
+> The semantic layer told Claude what "deal" maps to. The query ran validated and
+> LIMIT-enforced before touching the database.
 
 ---
 
-## Connecting to AI Tools
+## Quick connect
 
-The server communicates over **stdio** (standard MCP transport). Every tool below uses the same underlying command:
+**You do not need to clone this repository.**
 
-```bash
-uv run --directory /path/to/dbsage dbsage
-```
+Once dbsage is published to PyPI, connect any MCP-compatible client by passing your database credentials as environment variables — no `.env` file, no local setup.
 
-Replace `/path/to/dbsage` with the absolute path to this repository on your machine.
+> PyPI publication is in progress. Until then, use the **from-source path** in the collapsible sections below.
 
----
-
-### Claude Code (CLI)
-
-Add the server to your Claude Code MCP configuration:
+### Claude Code
 
 ```bash
 claude mcp add dbsage \
-  --command "uv" \
-  --args "run,--directory,/path/to/dbsage,dbsage"
+  --command "uvx" \
+  --args "dbsage" \
+  --env "DBSAGE_DB_HOST=your-host.rds.amazonaws.com" \
+  --env "DBSAGE_DB_NAME=your_database" \
+  --env "DBSAGE_DB_USER=readonly_user" \
+  --env "DBSAGE_DB_PASSWORD=your_password" \
+  --env "DBSAGE_DB_TYPE=mysql"
 ```
 
 Or edit `~/.claude/claude_code_config.json` directly:
@@ -162,50 +77,109 @@ Or edit `~/.claude/claude_code_config.json` directly:
 {
   "mcpServers": {
     "dbsage": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/dbsage", "dbsage"]
+      "command": "uvx",
+      "args": ["dbsage"],
+      "env": {
+        "DBSAGE_DB_HOST": "your-host.rds.amazonaws.com",
+        "DBSAGE_DB_NAME": "your_database",
+        "DBSAGE_DB_USER": "readonly_user",
+        "DBSAGE_DB_PASSWORD": "your_password",
+        "DBSAGE_DB_TYPE": "mysql"
+      }
     }
   }
 }
 ```
 
-Verify the server is registered:
+<details>
+<summary>Running from source (until PyPI is available)</summary>
 
 ```bash
-claude mcp list
+git clone https://github.com/MihirLathiya510/dbsage.git
+cd dbsage
+cp .env.example .env   # fill in your database credentials
+uv sync
 ```
+
+Then in your MCP client config:
+
+```json
+{
+  "mcpServers": {
+    "dbsage": {
+      "command": "uv",
+      "args": ["run", "--directory", "/absolute/path/to/dbsage", "dbsage"]
+    }
+  }
+}
+```
+
+</details>
 
 ---
 
 ### Cursor IDE
 
-Create or edit `.cursor/mcp.json` in your project root (or `~/.cursor/mcp.json` for global config):
+Create or edit `.cursor/mcp.json` in your project (or `~/.cursor/mcp.json` for global):
 
 ```json
 {
   "mcpServers": {
     "dbsage": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/dbsage", "dbsage"]
+      "command": "uvx",
+      "args": ["dbsage"],
+      "env": {
+        "DBSAGE_DB_HOST": "your-host",
+        "DBSAGE_DB_NAME": "your_database",
+        "DBSAGE_DB_USER": "readonly_user",
+        "DBSAGE_DB_PASSWORD": "your_password",
+        "DBSAGE_DB_TYPE": "mysql"
+      }
     }
   }
 }
 ```
 
-Restart Cursor after saving. The dbsage tools will appear in the MCP tools panel.
+Restart Cursor after saving.
 
----
-
-### Claude Desktop
-
-Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
+<details>
+<summary>Running from source</summary>
 
 ```json
 {
   "mcpServers": {
     "dbsage": {
       "command": "uv",
-      "args": ["run", "--directory", "/path/to/dbsage", "dbsage"]
+      "args": ["run", "--directory", "/absolute/path/to/dbsage", "dbsage"]
+    }
+  }
+}
+```
+
+</details>
+
+---
+
+### Claude Desktop
+
+Edit the config file for your OS:
+
+- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "dbsage": {
+      "command": "uvx",
+      "args": ["dbsage"],
+      "env": {
+        "DBSAGE_DB_HOST": "your-host",
+        "DBSAGE_DB_NAME": "your_database",
+        "DBSAGE_DB_USER": "readonly_user",
+        "DBSAGE_DB_PASSWORD": "your_password",
+        "DBSAGE_DB_TYPE": "mysql"
+      }
     }
   }
 }
@@ -213,21 +187,73 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) o
 
 Restart Claude Desktop after saving.
 
+<details>
+<summary>Running from source</summary>
+
+```json
+{
+  "mcpServers": {
+    "dbsage": {
+      "command": "uv",
+      "args": ["run", "--directory", "/absolute/path/to/dbsage", "dbsage"]
+    }
+  }
+}
+```
+
+</details>
+
 ---
 
-### Any MCP-Compatible Client
+### Any MCP-compatible client
 
-The server speaks standard MCP over stdio. Pass this command to any client:
+dbsage speaks standard MCP over stdio. Pass this command with `DBSAGE_*` environment variables for your credentials:
 
 ```
-uv run --directory /path/to/dbsage dbsage
+uvx dbsage
 ```
 
 ---
 
-## Semantic Schema (Optional but Recommended)
+## Tools
 
-The semantic layer makes the LLM understand your database at a business level, not just a structural level. Edit `config/semantic_schema.json`:
+15 tools across 5 categories. Full reference with output examples: [docs/tools.md](docs/tools.md)
+
+| Category  | Tool                       | What it does                                               |
+|-----------|----------------------------|------------------------------------------------------------|
+| Discovery | `list_tables`              | List all visible tables with row counts                    |
+|           | `search_tables`            | Filter tables by keyword                                   |
+| Schema    | `describe_table`           | Column names, types, nullability, keys, FK references      |
+|           | `table_relationships`      | Foreign key map for one table or the whole database        |
+|           | `schema_summary`           | Full overview: all tables with row counts, sizes, FK graph |
+| Sampling  | `sample_table`             | Return N rows from a table                                 |
+|           | `sample_column_values`     | Distinct values with counts for a column                   |
+|           | `table_row_count`          | Fast approximate row count from `information_schema`       |
+|           | `inspect_json_column`      | Pretty-print JSON samples from a JSON/JSONB column         |
+| Query     | `run_read_only_query`      | Validate, rewrite, and execute a SELECT query              |
+|           | `explain_query`            | Return the query execution plan (EXPLAIN)                  |
+| Semantic  | `get_database_context`     | Full business mental model: domain, vocabulary, analytics  |
+|           | `get_table_semantics`      | Business description and column meanings for one table     |
+|           | `search_schema_by_meaning` | Find tables/columns by business term                       |
+
+---
+
+## Semantic layer
+
+The semantic layer is what separates dbsage from a raw SQL proxy. Without it, an LLM has to explore the schema step-by-step before it can answer anything. With it, one call to `get_database_context()` gives Claude a complete business picture.
+
+**Without the semantic layer:**
+```
+list_tables → describe_table → describe_table → table_relationships
+→ sample_column_values → ... (6+ calls just to understand the schema)
+```
+
+**With the semantic layer:**
+```
+get_database_context() → full domain understanding in one call → query runs
+```
+
+Add a `config/semantic_schema.json` file to enable it:
 
 ```json
 {
@@ -239,98 +265,80 @@ The semantic layer makes the LLM understand your database at a business level, n
   },
   "vocabulary": {
     "customer": "users",
-    "purchase": "orders",
-    "item": "products"
+    "purchase": "orders"
   },
   "tables": {
     "users": {
       "description": "Registered customer accounts",
-      "tags": ["core", "auth"],
       "columns": {
         "id": "Unique user identifier (UUID)",
-        "email": "Login email address",
-        "created_at": "Account creation timestamp"
-      },
-      "common_queries": [
-        "SELECT id, email, created_at FROM users ORDER BY created_at DESC LIMIT 20"
-      ]
+        "email": "Login email address"
+      }
     }
-  },
-  "common_analytics": [
-    {
-      "name": "Orders by day",
-      "description": "Daily order volume",
-      "sql": "SELECT DATE(created_at) as day, COUNT(*) as orders FROM orders GROUP BY day ORDER BY day DESC LIMIT 30"
-    }
-  ]
+  }
 }
 ```
 
-Once populated, the LLM can call `get_database_context()` and immediately understand the business domain without exploring the schema step by step.
+Full cookbook with domain templates (e-commerce, SaaS, financial): [docs/semantic.md](docs/semantic.md)
+
+---
+
+## Configuration
+
+All configuration uses the `DBSAGE_` prefix. Pass values in the MCP client `env` block or in a `.env` file when running from source.
+
+| Variable | Default | Description |
+|---|---|---|
+| `DBSAGE_DB_HOST` | `localhost` | Database hostname |
+| `DBSAGE_DB_PORT` | `3306` | Database port |
+| `DBSAGE_DB_NAME` | — | Database name (required) |
+| `DBSAGE_DB_USER` | — | Database user (required) |
+| `DBSAGE_DB_PASSWORD` | — | Database password (required) |
+| `DBSAGE_DB_TYPE` | `mysql` | `mysql` or `postgresql` |
+| `DBSAGE_MAX_QUERY_ROWS` | `100` | Hard cap on rows returned |
+| `DBSAGE_QUERY_TIMEOUT_MS` | `3000` | Query execution timeout in ms |
+| `DBSAGE_SLOW_QUERY_THRESHOLD_MS` | `2000` | Log queries exceeding this (ms) |
+| `DBSAGE_DEFAULT_SAMPLE_LIMIT` | `10` | Default row count for `sample_table` |
+| `DBSAGE_CACHE_TTL_SECONDS` | `300` | Schema metadata cache TTL in seconds |
+| `DBSAGE_BLACKLISTED_TABLES` | `[]` | Tables hidden from the LLM |
+| `DBSAGE_DEV_MODE` | `false` | Human-readable logs (JSON otherwise) |
+
+You can also manage the blacklist in `config/blacklist_tables.json` — it merges with the env var at startup.
+
+---
+
+## Security
+
+- **Read-only at the validator level.** INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, CREATE, GRANT, REVOKE are blocked before execution, not just discouraged. Indirect mutation paths (`SELECT INTO OUTFILE`, `LOAD DATA INFILE`, `CREATE TEMP TABLE`) are also blocked.
+- **Credentials never leak.** The database password is `SecretStr` — it never appears in logs, stack traces, or repr output.
+- **No runaway queries.** Every execution runs under `asyncio.timeout()`. Results are hard-capped at `DBSAGE_MAX_QUERY_ROWS` regardless of what the SQL says.
+- **Sensitive tables stay hidden.** `DBSAGE_BLACKLISTED_TABLES` removes tables from all tool responses before the LLM sees them.
+- **Recommended:** create a database user with `SELECT` privilege only — defense in depth beyond the validator.
 
 ---
 
 ## Development
 
 ```bash
-# Install with dev dependencies
+git clone https://github.com/MihirLathiya510/dbsage.git
+cd dbsage
 uv sync --extra dev
 
-# Run tests
-uv run pytest
-
-# Lint
-uv run ruff check src/
-
-# Type check
-uv run mypy src/
-
-# Run the server directly (for debugging)
-uv run dbsage
+uv run pytest               # 121 tests, ~95% coverage
+uv run ruff check src/      # lint + security scan
+uv run mypy src/            # strict type check
 ```
 
-### Test coverage
-
-The test suite targets 80% coverage minimum and currently runs at ~95%:
-
-```bash
-uv run pytest --cov=src/dbsage --cov-report=html
-open htmlcov/index.html
-```
+Contributing guide, how to add a tool, and the PR checklist: [docs/contributing.md](docs/contributing.md)
 
 ---
 
-## Project Structure
+## Requirements
 
-```
-src/dbsage/
-├── mcp_server/          # Server entrypoint, config, dependency injection
-├── tools/               # MCP tool definitions (one file per capability group)
-├── db/                  # Query validator, rewriter, executor, connection pool
-├── schema/              # information_schema queries with TTL caching
-├── semantic/            # Semantic schema loader and search
-├── formatting/          # Pipe-delimited table formatter for LLM output
-├── cache/               # TTL in-memory cache for schema metadata
-├── logging_/            # structlog setup (named logging_ to avoid stdlib clash)
-└── exceptions.py        # Domain exception hierarchy
-
-config/
-├── blacklist_tables.json   # Tables to hide from the LLM
-└── semantic_schema.json    # Business context annotations
-
-tests/                   # 121 unit tests, all mocked (no live DB required)
-```
-
----
-
-## Security Model
-
-- **Database credentials**: store in `.env`, never commit to version control (`.env` is in `.gitignore`)
-- **Read-only enforcement**: validator runs before every query execution; forbidden keywords raise `ForbiddenQueryError`
-- **Result limits**: queries capped at `DBSAGE_MAX_QUERY_ROWS` rows regardless of the SQL written
-- **Execution timeout**: `asyncio.timeout()` wraps every database call
-- **Table blacklisting**: sensitive tables removed from all tool responses before the LLM sees them
-- **Secrets in logs**: `db_password` is `SecretStr` — never appears in logs or repr output
+- Python 3.12+
+- [uv](https://docs.astral.sh/uv/) — `curl -LsSf https://astral.sh/uv/install.sh | sh`
+- MySQL 5.7+ or PostgreSQL 13+
+- Network access to your database
 
 ---
 

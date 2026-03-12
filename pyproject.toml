@@ -6,7 +6,25 @@ build-backend = "hatchling.build"
 name = "dbsage"
 version = "0.1.0"
 description = "AI Database Copilot — MCP server for safe LLM database access"
+readme = "README.md"
+license = { text = "MIT" }
 requires-python = ">=3.12"
+authors = [
+    { name = "Mihir Lathiya" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: Developers",
+    "Topic :: Database",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.urls]
+Homepage = "https://github.com/MihirLathiya510/dbsage"
+Documentation = "https://github.com/MihirLathiya510/dbsage/tree/main/docs"
+Repository = "https://github.com/MihirLathiya510/dbsage"
+"Bug Tracker" = "https://github.com/MihirLathiya510/dbsage/issues"
 dependencies = [
     "fastmcp>=2.0",
     "sqlalchemy>=2.0",
