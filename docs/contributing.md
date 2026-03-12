@@ -51,13 +51,40 @@ Key files to know:
 
 ## Dev setup
 
+1. Fork the repo on GitHub
+2. Clone your fork:
+
 ```bash
-git clone https://github.com/MihirLathiya510/dbsage.git
+git clone https://github.com/your-username/dbsage.git
 cd dbsage
+git remote add upstream https://github.com/MihirLathiya510/dbsage.git
 uv sync --extra dev
 ```
 
-That's it. No database required for development — all tests mock the DB layer.
+No database required — all tests mock the DB layer.
+
+**The full contribution cycle:**
+
+```
+fork → clone → branch → change → test locally → push to your fork → open PR → review → merge
+```
+
+Always work on a feature branch, not `master`:
+
+```bash
+git checkout -b feat/your-tool-name
+# make changes
+uv run pytest && uv run ruff check src/ && uv run mypy src/
+git push origin feat/your-tool-name
+# open PR from your fork against MihirLathiya510/dbsage master
+```
+
+Keep PRs focused — one tool, one fix, one concern per PR. If your branch drifts behind `upstream/master`, rebase before opening the PR:
+
+```bash
+git fetch upstream
+git rebase upstream/master
+```
 
 ---
 

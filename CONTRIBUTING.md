@@ -4,9 +4,13 @@ Contributions are welcome — tools, bug fixes, documentation, and database driv
 
 ## Quick start
 
+1. Fork the repo on GitHub
+2. Clone your fork and set up:
+
 ```bash
-git clone https://github.com/MihirLathiya510/dbsage.git
+git clone https://github.com/your-username/dbsage.git
 cd dbsage
+git remote add upstream https://github.com/MihirLathiya510/dbsage.git
 uv sync --extra dev
 uv run pytest       # should all pass
 ```
