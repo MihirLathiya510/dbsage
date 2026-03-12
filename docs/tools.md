@@ -1,6 +1,6 @@
 # Tool Reference
 
-dbsage exposes 15 tools to the LLM across 5 categories. Every tool returns plain-text output formatted for readability — Unicode box tables, aligned columns, timing on every query.
+dbsage exposes 16 tools to the LLM across 5 categories. Every tool returns plain-text output formatted for readability — Unicode box tables, aligned columns, timing on every query.
 
 ---
 
@@ -97,6 +97,32 @@ Show foreign key relationships — either for a single table or the entire datab
 ```
 
 Use this to understand join paths before writing multi-table queries. Calling `table_relationships("deals")` filters to only relationships involving the `deals` table.
+
+---
+
+### `show_create_view`
+
+Return the full, untruncated `CREATE VIEW` SQL for a database view.
+
+| Parameter | Type | Default | Notes |
+|---|---|---|---|
+| `view_name` | `str` | — | Exact view name |
+
+```
+── show_create_view: v_active_deals ─────────────────────────────────────────
+
+  View:           v_active_deals
+  Character set:  utf8mb4
+
+CREATE ALGORITHM=UNDEFINED DEFINER=`readonly`@`%` SQL SECURITY DEFINER
+VIEW `v_active_deals` AS
+SELECT d.id, d.name, dt.name AS deal_type, d.status, d.created_at
+FROM deals d
+JOIN deal_types dt ON d.dealType_id = dt.id
+WHERE d.status IN ('active', 'term_sheet')
+```
+
+Use this instead of querying `information_schema.VIEWS` — the `VIEW_DEFINITION` column truncates at 4096 characters. `SHOW CREATE VIEW` always returns the complete SQL.
 
 ---
 
@@ -241,6 +267,7 @@ Execute a validated, LIMIT-injected SELECT query. Three layers of protection run
 | Parameter | Type | Default | Notes |
 |---|---|---|---|
 | `query` | `str` | — | A SELECT, SHOW, DESCRIBE, EXPLAIN, or WITH query |
+| `limit` | `int \| None` | `None` | Override row count. `None` uses `DBSAGE_MAX_QUERY_ROWS` (100). Explicit values are capped at `DBSAGE_MAX_QUERY_ROWS_HARD_CAP` (500). |
 
 ```
 ── run_read_only_query ───────────────────────────────────────────────────────────

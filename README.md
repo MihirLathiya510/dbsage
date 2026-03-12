@@ -217,7 +217,7 @@ uvx dbsage
 
 ## Tools
 
-15 tools across 5 categories. Full reference with output examples: [docs/tools.md](docs/tools.md)
+16 tools across 5 categories. Full reference with output examples: [docs/tools.md](docs/tools.md)
 
 | Category  | Tool                       | What it does                                               |
 |-----------|----------------------------|------------------------------------------------------------|
@@ -226,6 +226,7 @@ uvx dbsage
 | Schema    | `describe_table`           | Column names, types, nullability, keys, FK references      |
 |           | `table_relationships`      | Foreign key map for one table or the whole database        |
 |           | `schema_summary`           | Full overview: all tables with row counts, sizes, FK graph |
+|           | `show_create_view`         | Full untruncated CREATE VIEW SQL for any database view     |
 | Sampling  | `sample_table`             | Return N rows from a table                                 |
 |           | `sample_column_values`     | Distinct values with counts for a column                   |
 |           | `table_row_count`          | Fast approximate row count from `information_schema`       |
@@ -295,7 +296,8 @@ All configuration uses the `DBSAGE_` prefix. Pass values in the MCP client `env`
 | `DBSAGE_DB_USER` | — | Database user (required) |
 | `DBSAGE_DB_PASSWORD` | — | Database password (required) |
 | `DBSAGE_DB_TYPE` | `mysql` | `mysql` or `postgresql` |
-| `DBSAGE_MAX_QUERY_ROWS` | `100` | Hard cap on rows returned |
+| `DBSAGE_MAX_QUERY_ROWS` | `100` | Default row limit auto-injected when no LIMIT present |
+| `DBSAGE_MAX_QUERY_ROWS_HARD_CAP` | `500` | Ceiling when LLM passes an explicit `limit` parameter |
 | `DBSAGE_QUERY_TIMEOUT_MS` | `3000` | Query execution timeout in ms |
 | `DBSAGE_SLOW_QUERY_THRESHOLD_MS` | `2000` | Log queries exceeding this (ms) |
 | `DBSAGE_DEFAULT_SAMPLE_LIMIT` | `10` | Default row count for `sample_table` |
@@ -311,7 +313,7 @@ You can also manage the blacklist in `config/blacklist_tables.json` — it merge
 
 - **Read-only at the validator level.** INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, CREATE, GRANT, REVOKE are blocked before execution, not just discouraged. Indirect mutation paths (`SELECT INTO OUTFILE`, `LOAD DATA INFILE`, `CREATE TEMP TABLE`) are also blocked.
 - **Credentials never leak.** The database password is `SecretStr` — it never appears in logs, stack traces, or repr output.
-- **No runaway queries.** Every execution runs under `asyncio.timeout()`. Results are hard-capped at `DBSAGE_MAX_QUERY_ROWS` regardless of what the SQL says.
+- **No runaway queries.** Every execution runs under `asyncio.timeout()`. A default of `DBSAGE_MAX_QUERY_ROWS` (100) rows is injected automatically; passing an explicit `limit` is capped at `DBSAGE_MAX_QUERY_ROWS_HARD_CAP` (500). Neither limit can be bypassed by the LLM.
 - **Sensitive tables stay hidden.** `DBSAGE_BLACKLISTED_TABLES` removes tables from all tool responses before the LLM sees them.
 - **Recommended:** create a database user with `SELECT` privilege only — defense in depth beyond the validator.
 
@@ -324,7 +326,7 @@ git clone https://github.com/MihirLathiya510/dbsage.git
 cd dbsage
 uv sync --extra dev
 
-uv run pytest               # 121 tests, ~95% coverage
+uv run pytest               # 181 tests, ~96% coverage
 uv run ruff check src/      # lint + security scan
 uv run mypy src/            # strict type check
 ```
