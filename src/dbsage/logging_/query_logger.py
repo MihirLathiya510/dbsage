@@ -6,6 +6,7 @@ JSON output in production, human-readable ConsoleRenderer in dev mode.
 """
 
 import logging
+from typing import cast
 
 import structlog
 
@@ -38,7 +39,7 @@ def configure_logging(dev_mode: bool = False) -> None:
 
 def get_logger() -> structlog.BoundLogger:
     """Return a bound structlog logger."""
-    return structlog.get_logger()
+    return cast(structlog.BoundLogger, structlog.get_logger())
 
 
 async def log_query_executed(

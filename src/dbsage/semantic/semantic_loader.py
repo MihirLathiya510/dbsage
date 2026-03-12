@@ -11,7 +11,7 @@ working, just without semantic enrichment.
 import json
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 _SEMANTIC_JSON = Path(__file__).parents[3] / "config" / "semantic_schema.json"
 
@@ -22,19 +22,20 @@ def _load() -> dict[str, Any]:
     if not _SEMANTIC_JSON.exists():
         return {}
     try:
-        return json.loads(_SEMANTIC_JSON.read_text(encoding="utf-8"))
+        data = json.loads(_SEMANTIC_JSON.read_text(encoding="utf-8"))
+        return cast(dict[str, Any], data)
     except (json.JSONDecodeError, OSError):
         return {}
 
 
 def get_database_info() -> dict[str, Any]:
     """Return the top-level database description block."""
-    return _load().get("database", {})
+    return cast(dict[str, Any], _load().get("database", {}))
 
 
 def get_vocabulary() -> dict[str, str]:
     """Return the business vocabulary mapping (term → table name)."""
-    return _load().get("vocabulary", {})
+    return cast(dict[str, str], _load().get("vocabulary", {}))
 
 
 def get_table_meta(table_name: str) -> dict[str, Any] | None:
@@ -49,12 +50,12 @@ def get_table_meta(table_name: str) -> dict[str, Any] | None:
 
 def get_all_tables_meta() -> dict[str, Any]:
     """Return semantic metadata for all documented tables."""
-    return _load().get("tables", {})
+    return cast(dict[str, Any], _load().get("tables", {}))
 
 
 def get_common_analytics() -> list[dict[str, Any]]:
     """Return predefined common analytics queries."""
-    return _load().get("common_analytics", [])
+    return cast(list[dict[str, Any]], _load().get("common_analytics", []))
 
 
 def search_by_term(query: str) -> list[dict[str, Any]]:
