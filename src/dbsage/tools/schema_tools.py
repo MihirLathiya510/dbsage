@@ -1,6 +1,7 @@
 """Schema inspection tools — describe tables, relationships, and database overview."""
 
 from dbsage.cache.schema_cache import cache_get, cache_set
+from dbsage.db.query_executor import execute_query
 from dbsage.exceptions import TableBlacklistedError
 from dbsage.formatting.table_formatter import (
     format_column_list_v2,
@@ -176,3 +177,48 @@ async def _fetch_summary_data(
         t_task = tg.create_task(get_table_sizes(eng, timeout_ms))
         fk_task = tg.create_task(get_foreign_keys(eng, timeout_ms=timeout_ms))
     return t_task.result(), fk_task.result()
+
+
+@mcp.tool()
+async def show_create_view(view_name: str) -> str:
+    """Return the full CREATE VIEW SQL for a database view.
+
+    Use this instead of querying information_schema.VIEWS — SHOW CREATE VIEW
+    returns the complete, untruncated SQL definition regardless of length.
+    Useful for understanding complex views before querying through them.
+
+    Pass a SELECT query to explain_query() if you want the execution plan.
+
+    Args:
+        view_name: Name of the view to inspect.
+    """
+    settings = get_app_settings()
+    engine = get_db_engine()
+    header = section_header("show_create_view", view_name)
+
+    blacklisted = {t.lower() for t in settings.blacklisted_tables}
+    if view_name.lower() in blacklisted:
+        raise TableBlacklistedError(view_name)
+
+    rows = await execute_query(
+        f"SHOW CREATE VIEW {view_name}",
+        engine,
+        timeout_ms=settings.query_timeout_ms,
+    )
+
+    if not rows:
+        return f"{header}\n\n  (view '{view_name}' not found)"
+
+    row = rows[0]
+    # MySQL returns: View, Create View, character_set_client, collation_connection
+    create_sql: str = str(row.get("Create View", ""))
+    charset: str = str(row.get("character_set_client", ""))
+
+    meta_lines = [
+        f"  View:           {view_name}",
+    ]
+    if charset:
+        meta_lines.append(f"  Character set:  {charset}")
+
+    meta = "\n".join(meta_lines)
+    return f"{header}\n\n{meta}\n\n{create_sql}"
