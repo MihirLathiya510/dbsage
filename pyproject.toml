@@ -19,12 +19,6 @@ classifiers = [
     "Topic :: Database",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
-
-[project.urls]
-Homepage = "https://github.com/MihirLathiya510/dbsage"
-Documentation = "https://github.com/MihirLathiya510/dbsage/tree/main/docs"
-Repository = "https://github.com/MihirLathiya510/dbsage"
-"Bug Tracker" = "https://github.com/MihirLathiya510/dbsage/issues"
 dependencies = [
     "fastmcp>=2.0",
     "sqlalchemy>=2.0",
@@ -35,6 +29,12 @@ dependencies = [
     "cachetools>=5.0",
     "wcwidth>=0.6.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/MihirLathiya510/dbsage"
+Documentation = "https://github.com/MihirLathiya510/dbsage/tree/main/docs"
+Repository = "https://github.com/MihirLathiya510/dbsage"
+"Bug Tracker" = "https://github.com/MihirLathiya510/dbsage/issues"
 
 [project.optional-dependencies]
 dev = [
