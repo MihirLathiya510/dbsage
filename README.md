@@ -48,6 +48,29 @@
 > The semantic layer told Claude what "deal" maps to. The query ran validated and
 > LIMIT-enforced before touching the database.
 
+> A developer asks Claude: _"Is staging in sync with production before we deploy?"_
+
+```
+── diff_schema: prod → staging ─────────────────────────────────────────────────
+
+  Tables only in prod:     audit_log, feature_flags
+  Tables only in staging:  (none)
+  Tables in both:          147 tables
+
+── compare_row_counts: orders ───────────────────────────────────────────────────
+
+  prod       4.3M
+  replica    4.3M
+  staging    18.4k
+
+  (row counts are information_schema estimates)
+```
+
+> **2 tool calls across 3 databases. No VPN switching. No separate DB clients.**
+>
+> Configure named connection profiles once. Every tool accepts `connection='<name>'`
+> to route to the right database — or leave it blank to hit the default.
+
 ---
 
 ## Quick connect
@@ -289,6 +312,14 @@ Add a `config/semantic_schema.json` file to enable it:
 ```
 
 Full cookbook with domain templates (e-commerce, SaaS, financial): [docs/semantic.md](docs/semantic.md)
+
+---
+
+## Multi-connection
+
+Connect to multiple databases simultaneously — dev, staging, prod, replicas, data warehouses. Every tool accepts `connection='<name>'` to route to a named profile. Six cross-connection tools let Claude compare schemas, diff row counts, and run the same query across environments in a single call.
+
+Setup guide, password options, per-profile guardrails, and connection groups: [docs/multi-connection.md](docs/multi-connection.md)
 
 ---
 

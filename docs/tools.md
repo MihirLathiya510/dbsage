@@ -447,7 +447,7 @@ Note: this tool searches the **semantic schema** (your `config/semantic_schema.j
 
 ## Connections
 
-These tools require `config/connections.json` with at least one named profile. Copy `config/connections.example.json` to get started. See the README for the full configuration format including password options (`password` inline or `password_env` for env var lookup).
+These tools require `config/connections.json` with at least one named profile. Copy `config/connections.example.json` to get started. Full setup guide including password options, per-profile guardrails, and connection groups: [docs/multi-connection.md](multi-connection.md)
 
 Connection group names (e.g. `"all-prod"`) are accepted anywhere a `connections` list is expected — they expand to the individual profiles defined in the `"groups"` section of `connections.json`.
 
