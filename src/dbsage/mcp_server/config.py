@@ -1,12 +1,15 @@
 """Central configuration for dbsage using pydantic-settings."""
 
 import json
+import logging
 import os
 from functools import lru_cache
 from pathlib import Path
 
 from pydantic import BaseModel, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_log = logging.getLogger(__name__)
 
 # Path to the optional JSON config files (relative to project root)
 _BLACKLIST_JSON = Path(__file__).parents[3] / "config" / "blacklist_tables.json"
@@ -116,8 +119,8 @@ class Settings(BaseSettings):
                 # Resolve password from env at load time so it is available
                 # immediately but still read from env (not stored in JSON).
                 parsed[name] = ConnectionProfile(**profile_data)
-            except Exception:  # noqa: BLE001, S110
-                pass  # malformed profile — skip silently
+            except Exception:  # noqa: BLE001
+                _log.warning("Skipping malformed connection profile %r", name)
 
         if parsed:
             self.connections = parsed
