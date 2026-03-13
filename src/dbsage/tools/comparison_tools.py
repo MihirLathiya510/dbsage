@@ -68,6 +68,7 @@ async def compare_query_across_connections(
             max_rows, _, _ = resolve_guardrails(name, settings)
             safe_query = rewrite_query(query, max_rows=max_rows)
             import time
+
             start = time.monotonic()
             rows = await execute_query(safe_query, engine, timeout_ms=timeout_ms)
             elapsed = (time.monotonic() - start) * 1000
@@ -177,10 +178,9 @@ async def diff_schema(
             only_b_cols.append(col)
         else:
             a, b = cols_a[col], cols_b[col]
-            if (
-                a.get("data_type") != b.get("data_type")
-                or a.get("is_nullable") != b.get("is_nullable")
-            ):
+            if a.get("data_type") != b.get("data_type") or a.get(
+                "is_nullable"
+            ) != b.get("is_nullable"):
                 differ_cols.append((col, a, b))
             else:
                 same_cols.append(col)

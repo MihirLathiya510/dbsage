@@ -114,7 +114,13 @@ def test_multiple_profiles_loaded(tmp_path: Path) -> None:
 def test_get_password_for_inline_password(tmp_path: Path) -> None:
     conn_file = tmp_path / "connections.json"
     conn_file.write_text(
-        json.dumps({"connections": {"primary": _minimal_profile_data(password="direct_secret")}})
+        json.dumps(
+            {
+                "connections": {
+                    "primary": _minimal_profile_data(password="direct_secret")
+                }
+            }
+        )
     )
     with patch("dbsage.mcp_server.config._CONNECTIONS_JSON", conn_file):
         s = Settings()
@@ -122,11 +128,19 @@ def test_get_password_for_inline_password(tmp_path: Path) -> None:
     assert pw == "direct_secret"
 
 
-def test_get_password_for_reads_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_get_password_for_reads_env(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     monkeypatch.setenv("MY_SECRET_PW", "super_secret")
     conn_file = tmp_path / "connections.json"
     conn_file.write_text(
-        json.dumps({"connections": {"primary": _minimal_profile_data(password_env="MY_SECRET_PW")}})
+        json.dumps(
+            {
+                "connections": {
+                    "primary": _minimal_profile_data(password_env="MY_SECRET_PW")
+                }
+            }
+        )
     )
     with patch("dbsage.mcp_server.config._CONNECTIONS_JSON", conn_file):
         s = Settings()
@@ -160,7 +174,15 @@ def test_get_password_for_inline_takes_precedence_over_env(
 def test_get_password_for_missing_env_returns_empty(tmp_path: Path) -> None:
     conn_file = tmp_path / "connections.json"
     conn_file.write_text(
-        json.dumps({"connections": {"primary": _minimal_profile_data(password_env="DEFINITELY_NOT_SET_XYZ")}})
+        json.dumps(
+            {
+                "connections": {
+                    "primary": _minimal_profile_data(
+                        password_env="DEFINITELY_NOT_SET_XYZ"
+                    )
+                }
+            }
+        )
     )
     with patch("dbsage.mcp_server.config._CONNECTIONS_JSON", conn_file):
         s = Settings()

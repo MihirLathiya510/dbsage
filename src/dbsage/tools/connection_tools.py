@@ -85,8 +85,7 @@ async def ping_connections(connections: list[str] | None = None) -> str:
 
     if not settings.connections:
         return (
-            f"{header}\n\n"
-            "  (no named connection profiles configured — nothing to ping)"
+            f"{header}\n\n  (no named connection profiles configured — nothing to ping)"
         )
 
     # Resolve which profiles to ping

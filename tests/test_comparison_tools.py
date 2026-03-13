@@ -179,10 +179,12 @@ async def test_diff_schema_table_list_only_a() -> None:
         patch("dbsage.tools.comparison_tools.get_engine_for", return_value=mock_engine),
         patch(
             "dbsage.tools.comparison_tools._list_tables",
-            new=AsyncMock(side_effect=[
-                ["users", "orders", "feature_flags"],
-                ["users", "orders"],
-            ]),
+            new=AsyncMock(
+                side_effect=[
+                    ["users", "orders", "feature_flags"],
+                    ["users", "orders"],
+                ]
+            ),
         ),
     ):
         result = await diff_schema("primary", "replica")
@@ -253,10 +255,12 @@ async def test_find_table_found_and_not_found() -> None:
         patch("dbsage.tools.comparison_tools.get_engine_for", return_value=mock_engine),
         patch(
             "dbsage.tools.comparison_tools._list_tables",
-            new=AsyncMock(side_effect=[
-                ["users", "feature_flags"],
-                ["users"],
-            ]),
+            new=AsyncMock(
+                side_effect=[
+                    ["users", "feature_flags"],
+                    ["users"],
+                ]
+            ),
         ),
     ):
         result = await find_table_across_connections("feature_flags")
@@ -422,10 +426,12 @@ async def test_diff_schema_table_list_only_b() -> None:
         patch("dbsage.tools.comparison_tools.get_engine_for", return_value=mock_engine),
         patch(
             "dbsage.tools.comparison_tools._list_tables",
-            new=AsyncMock(side_effect=[
-                ["users", "orders"],
-                ["users", "orders", "audit_log"],
-            ]),
+            new=AsyncMock(
+                side_effect=[
+                    ["users", "orders"],
+                    ["users", "orders", "audit_log"],
+                ]
+            ),
         ),
     ):
         result = await diff_schema("primary", "replica")
