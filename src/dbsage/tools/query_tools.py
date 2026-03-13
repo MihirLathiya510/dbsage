@@ -13,12 +13,19 @@ from dbsage.formatting.table_formatter import (
     section_header,
 )
 from dbsage.logging_.query_logger import log_query_executed, log_query_rejected
-from dbsage.mcp_server.dependencies import get_app_settings, get_db_engine
+from dbsage.mcp_server.dependencies import (
+    get_app_settings,
+    get_engine_for,
+    prod_warning,
+    resolve_guardrails,
+)
 from dbsage.mcp_server.server import mcp
 
 
 @mcp.tool()
-async def run_read_only_query(query: str, limit: int | None = None) -> str:
+async def run_read_only_query(
+    query: str, limit: int | None = None, connection: str | None = None
+) -> str:
     """Execute a safe read-only SQL SELECT query against the database.
 
     The query is automatically validated (no INSERT/UPDATE/DELETE/DROP etc.)
@@ -35,12 +42,18 @@ async def run_read_only_query(query: str, limit: int | None = None) -> str:
     Allowed: SELECT, SHOW, DESCRIBE, EXPLAIN, WITH (CTEs)
     Forbidden: INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, CREATE, GRANT, REVOKE
 
+    Pass connection='<name>' to target a specific named connection profile.
+    Call list_connections() to see available profiles.
+
     Args:
         query: A read-only SQL query to execute.
         limit: Optional row count override. Capped at DBSAGE_MAX_QUERY_ROWS_HARD_CAP.
+        connection: Optional named connection profile. Defaults to primary.
     """
     settings = get_app_settings()
-    engine = get_db_engine()
+    engine = get_engine_for(connection)
+    warning = prod_warning(connection)
+    max_rows, hard_cap, timeout_ms = resolve_guardrails(connection, settings)
     header = section_header("run_read_only_query")
 
     # Layer 1: validate — block any forbidden operations
@@ -55,13 +68,13 @@ async def run_read_only_query(query: str, limit: int | None = None) -> str:
             message=f"Query blocked: forbidden keyword '{e.keyword}'",
             hint="Only SELECT, SHOW, DESCRIBE, EXPLAIN, and WITH are allowed.",
         )
-        return f"{header}\n\n{body}"
+        return f"{warning}{header}\n\n{body}"
 
     # Resolve effective row limit: explicit request capped at hard cap, else default
     if limit is not None:
-        effective_limit = min(limit, settings.max_query_rows_hard_cap)
+        effective_limit = min(limit, hard_cap)
     else:
-        effective_limit = settings.max_query_rows
+        effective_limit = max_rows
 
     # Detect whether LIMIT was already present before rewriting
     limit_injected = not bool(re.search(r"\bLIMIT\b", query, re.IGNORECASE))
@@ -71,7 +84,7 @@ async def run_read_only_query(query: str, limit: int | None = None) -> str:
 
     # Layer 3: execute with timeout
     start = time.monotonic()
-    rows = await execute_query(safe_query, engine, timeout_ms=settings.query_timeout_ms)
+    rows = await execute_query(safe_query, engine, timeout_ms=timeout_ms)
     elapsed_ms = (time.monotonic() - start) * 1000
 
     await log_query_executed(
@@ -86,11 +99,11 @@ async def run_read_only_query(query: str, limit: int | None = None) -> str:
         elapsed_ms=elapsed_ms,
         limit_injected=limit_injected,
     )
-    return f"{header}\n\n{body}"
+    return f"{warning}{header}\n\n{body}"
 
 
 @mcp.tool()
-async def explain_query(query: str) -> str:
+async def explain_query(query: str, connection: str | None = None) -> str:
     """Return the query execution plan for a SQL query.
 
     Use this to inspect whether a query will use indexes or cause a full table scan
@@ -99,11 +112,17 @@ async def explain_query(query: str) -> str:
     Pass only the SELECT query — do NOT include 'EXPLAIN' yourself, it is added
     automatically. Example: explain_query("SELECT * FROM orders WHERE user_id = 42")
 
+    Pass connection='<name>' to target a specific named connection profile.
+    Call list_connections() to see available profiles.
+
     Args:
         query: A SELECT query to explain (without the EXPLAIN keyword).
+        connection: Optional named connection profile. Defaults to primary.
     """
     settings = get_app_settings()
-    engine = get_db_engine()
+    engine = get_engine_for(connection)
+    warning = prod_warning(connection)
+    _, _, timeout_ms = resolve_guardrails(connection, settings)
     header = section_header("explain_query")
 
     # Validate the underlying query first
@@ -115,13 +134,11 @@ async def explain_query(query: str) -> str:
             message=f"Query blocked: forbidden keyword '{e.keyword}'",
             hint="Only SELECT, SHOW, DESCRIBE, EXPLAIN, and WITH are allowed.",
         )
-        return f"{header}\n\n{body}"
+        return f"{warning}{header}\n\n{body}"
 
     explain_sql = f"EXPLAIN {query.strip()}"
     start = time.monotonic()
-    rows = await execute_query(
-        explain_sql, engine, timeout_ms=settings.query_timeout_ms
-    )
+    rows = await execute_query(explain_sql, engine, timeout_ms=timeout_ms)
     elapsed_ms = (time.monotonic() - start) * 1000
 
     body = format_query_result(
@@ -130,4 +147,4 @@ async def explain_query(query: str) -> str:
         elapsed_ms=elapsed_ms,
         limit_injected=False,
     )
-    return f"{header}\n\n{body}"
+    return f"{warning}{header}\n\n{body}"

@@ -20,7 +20,7 @@ from dbsage.semantic.semantic_loader import (
 
 
 @mcp.tool()
-def get_database_context() -> str:
+def get_database_context(connection: str | None = None) -> str:
     """Return a business-level mental model of the entire database.
 
     Call this FIRST when exploring an unfamiliar database. Returns:
@@ -31,6 +31,12 @@ def get_database_context() -> str:
 
     This replaces multiple list_tables + describe_table calls with a single
     high-level orientation.
+
+    Pass connection='<name>' to note which connection this context is for.
+    Call list_connections() to see available profiles.
+
+    Args:
+        connection: Optional named connection profile. Used for context labeling only.
     """
     db_info = get_database_info()
     vocab = get_vocabulary()
@@ -45,7 +51,9 @@ def get_database_context() -> str:
     lines: list[str] = []
 
     if db_info:
-        lines.append(f"=== {db_info.get('name', 'Database')} ===")
+        db_name = db_info.get("name", "Database")
+        conn_label = f" [{connection}]" if connection else ""
+        lines.append(f"=== {db_name}{conn_label} ===")
         lines.append("")
         if desc := db_info.get("description"):
             lines.append(desc)

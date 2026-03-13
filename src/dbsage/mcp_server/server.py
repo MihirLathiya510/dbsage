@@ -13,6 +13,8 @@ from dbsage.mcp_server.config import get_settings
 mcp: FastMCP = FastMCP(name="dbsage")
 
 # Register tools by importing their modules (side-effect: @mcp.tool() decorators run)
+import dbsage.tools.comparison_tools  # noqa: F401, E402
+import dbsage.tools.connection_tools  # noqa: F401, E402
 import dbsage.tools.discovery_tools  # noqa: F401, E402
 import dbsage.tools.query_tools  # noqa: F401, E402
 import dbsage.tools.sampling_tools  # noqa: F401, E402

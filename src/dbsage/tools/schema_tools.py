@@ -9,7 +9,12 @@ from dbsage.formatting.table_formatter import (
     format_section,
     section_header,
 )
-from dbsage.mcp_server.dependencies import get_app_settings, get_db_engine
+from dbsage.mcp_server.dependencies import (
+    get_app_settings,
+    get_engine_for,
+    prod_warning,
+    resolve_guardrails,
+)
 from dbsage.mcp_server.server import mcp
 from dbsage.schema.schema_explorer import (
     describe_table as _describe_table,
@@ -21,48 +26,58 @@ from dbsage.schema.schema_explorer import (
 
 
 @mcp.tool()
-async def describe_table(table_name: str) -> str:
+async def describe_table(table_name: str, connection: str | None = None) -> str:
     """Return column definitions for a database table.
 
     Shows column names, data types, nullable status, and key information.
     Use this after list_tables() to understand a table's structure before querying.
 
+    Pass connection='<name>' to target a specific named connection profile.
+    Call list_connections() to see available profiles.
+
     Args:
         table_name: The name of the table to describe.
+        connection: Optional named connection profile. Defaults to primary.
     """
     settings = get_app_settings()
-    engine = get_db_engine()
+    engine = get_engine_for(connection)
+    warning = prod_warning(connection)
+    _, _, timeout_ms = resolve_guardrails(connection, settings)
     header = section_header("describe_table", table_name)
 
     blacklisted = {t.lower() for t in settings.blacklisted_tables}
     if table_name.lower() in blacklisted:
         raise TableBlacklistedError(table_name)
 
-    columns = await _describe_table(
-        table_name, engine, timeout_ms=settings.query_timeout_ms
-    )
-    fks = await get_foreign_keys(
-        engine, table_name=table_name, timeout_ms=settings.query_timeout_ms
-    )
+    columns = await _describe_table(table_name, engine, timeout_ms=timeout_ms)
+    fks = await get_foreign_keys(engine, table_name=table_name, timeout_ms=timeout_ms)
     fk_map = {fk["from_column"]: f"{fk['to_table']}.{fk['to_column']}" for fk in fks}
 
     body = format_column_list_v2(columns, fk_map=fk_map, table_name=table_name)
-    return f"{header}\n\n{body}"
+    return f"{warning}{header}\n\n{body}"
 
 
 @mcp.tool()
-async def table_relationships(table_name: str = "") -> str:
+async def table_relationships(
+    table_name: str = "", connection: str | None = None
+) -> str:
     """Return foreign key relationships for a table (or the entire database).
 
     Shows how tables are connected via foreign keys. Use this to understand
     join paths before writing multi-table queries.
 
+    Pass connection='<name>' to target a specific named connection profile.
+    Call list_connections() to see available profiles.
+
     Args:
         table_name: Table to show relationships for.
                     Leave empty to see all FK relationships in the database.
+        connection: Optional named connection profile. Defaults to primary.
     """
     settings = get_app_settings()
-    engine = get_db_engine()
+    engine = get_engine_for(connection)
+    warning = prod_warning(connection)
+    _, _, timeout_ms = resolve_guardrails(connection, settings)
 
     blacklisted = {t.lower() for t in settings.blacklisted_tables}
     target = table_name.strip() or None
@@ -72,15 +87,12 @@ async def table_relationships(table_name: str = "") -> str:
     if target and target.lower() in blacklisted:
         raise TableBlacklistedError(target)
 
-    fks = await get_foreign_keys(
-        engine,
-        table_name=target,
-        timeout_ms=settings.query_timeout_ms,
-    )
+    fks = await get_foreign_keys(engine, table_name=target, timeout_ms=timeout_ms)
 
     if not fks:
         scope = f"'{target}'" if target else "this database"
-        return f"{header}\n\n  (no foreign key relationships found for {scope})"
+        msg = f"no foreign key relationships found for {scope}"
+        return f"{warning}{header}\n\n  ({msg})"
 
     # Filter out relationships where either side is blacklisted
     visible = [
@@ -92,38 +104,48 @@ async def table_relationships(table_name: str = "") -> str:
 
     if not visible:
         return (
-            f"{header}\n\n"
+            f"{warning}{header}\n\n"
             "  (no visible relationships — all related tables are blacklisted)"
         )
 
     body = format_relationships(visible)
     count = len(visible)
     rel_word = "relationship" if count == 1 else "relationships"
-    return f"{header}\n\n{body}\n\n  {count} {rel_word}"
+    return f"{warning}{header}\n\n{body}\n\n  {count} {rel_word}"
 
 
 @mcp.tool()
-async def schema_summary() -> str:
+async def schema_summary(connection: str | None = None) -> str:
     """Return a high-level overview of the entire database.
 
     Shows all tables with approximate row counts, sizes, and foreign key
     relationships. Use this as the first step to understand an unfamiliar database.
+
+    Pass connection='<name>' to target a specific named connection profile.
+    Call list_connections() to see available profiles.
+
+    Args:
+        connection: Optional named connection profile. Defaults to primary.
     """
     settings = get_app_settings()
-    engine = get_db_engine()
+    engine = get_engine_for(connection)
+    warning = prod_warning(connection)
+    _, _, timeout_ms = resolve_guardrails(connection, settings)
 
-    cached = cache_get("schema_summary")
+    # Cache key is connection-aware to prevent cross-connection collisions
+    cache_key = f"schema_summary:{connection or 'default'}"
+    cached = cache_get(cache_key)
     if cached is not None:
-        return str(cached)
+        return f"{warning}{cached}"
 
     blacklisted = {t.lower() for t in settings.blacklisted_tables}
 
-    tables, fks = await _fetch_summary_data(engine, settings.query_timeout_ms)
+    tables, fks = await _fetch_summary_data(engine, timeout_ms)
 
     visible_tables = [t for t in tables if t["table_name"].lower() not in blacklisted]
 
     if not visible_tables:
-        return section_header("schema_summary") + "\n\n  (no tables found)"
+        return f"{warning}{section_header('schema_summary')}\n\n  (no tables found)"
 
     header = section_header("schema_summary")
     sections: list[str] = [header, ""]
@@ -159,8 +181,8 @@ async def schema_summary() -> str:
         sections.append(format_section(f"Relationships ({len(visible_fks)})", rel_body))
 
     result = "\n".join(sections)
-    cache_set("schema_summary", result, settings.cache_ttl_seconds)
-    return result
+    cache_set(cache_key, result, settings.cache_ttl_seconds)
+    return f"{warning}{result}"
 
 
 async def _fetch_summary_data(
@@ -180,7 +202,7 @@ async def _fetch_summary_data(
 
 
 @mcp.tool()
-async def show_create_view(view_name: str) -> str:
+async def show_create_view(view_name: str, connection: str | None = None) -> str:
     """Return the full CREATE VIEW SQL for a database view.
 
     Use this instead of querying information_schema.VIEWS — SHOW CREATE VIEW
@@ -189,25 +211,41 @@ async def show_create_view(view_name: str) -> str:
 
     Pass a SELECT query to explain_query() if you want the execution plan.
 
+    Pass connection='<name>' to target a specific named connection profile.
+    Call list_connections() to see available profiles.
+
     Args:
         view_name: Name of the view to inspect.
+        connection: Optional named connection profile. Defaults to primary.
     """
     settings = get_app_settings()
-    engine = get_db_engine()
+    engine = get_engine_for(connection)
+    warning = prod_warning(connection)
+    _, _, timeout_ms = resolve_guardrails(connection, settings)
     header = section_header("show_create_view", view_name)
 
     blacklisted = {t.lower() for t in settings.blacklisted_tables}
     if view_name.lower() in blacklisted:
         raise TableBlacklistedError(view_name)
 
-    rows = await execute_query(
-        f"SHOW CREATE VIEW {view_name}",
-        engine,
-        timeout_ms=settings.query_timeout_ms,
-    )
+    try:
+        rows = await execute_query(
+            f"SHOW CREATE VIEW {view_name}",
+            engine,
+            timeout_ms=timeout_ms,
+        )
+    except Exception as exc:
+        msg = str(exc)
+        if "is not VIEW" in msg:
+            return (
+                f"{warning}{header}\n\n"
+                f"  '{view_name}' is a table, not a view. "
+                f"Use describe_table() or sample_table() instead."
+            )
+        raise
 
     if not rows:
-        return f"{header}\n\n  (view '{view_name}' not found)"
+        return f"{warning}{header}\n\n  (view '{view_name}' not found)"
 
     row = rows[0]
     # MySQL returns: View, Create View, character_set_client, collation_connection
@@ -221,4 +259,4 @@ async def show_create_view(view_name: str) -> str:
         meta_lines.append(f"  Character set:  {charset}")
 
     meta = "\n".join(meta_lines)
-    return f"{header}\n\n{meta}\n\n{create_sql}"
+    return f"{warning}{header}\n\n{meta}\n\n{create_sql}"
