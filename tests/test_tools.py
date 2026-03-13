@@ -474,6 +474,42 @@ async def test_show_create_view_not_found() -> None:
     assert "not found" in result
 
 
+async def test_show_create_view_table_not_view_error() -> None:
+    """MySQL 'is not VIEW' error returns a clean user-facing message."""
+    from dbsage.tools.schema_tools import show_create_view
+
+    settings = _settings()
+    p_s, p_e, _ = _patch_deps(settings)
+    with p_s, p_e:
+        with patch(
+            "dbsage.tools.schema_tools.execute_query",
+            AsyncMock(side_effect=Exception("'RmaRatios' is not VIEW")),
+        ):
+            result = await show_create_view("RmaRatios")
+    assert "is a table, not a view" in result
+    assert "describe_table" in result
+
+
+async def test_inspect_json_column_truncates_large_samples() -> None:
+    """Samples larger than 2000 chars are truncated with a notice."""
+    import json
+
+    from dbsage.tools.sampling_tools import inspect_json_column
+
+    settings = _settings()
+    p_s, p_e, _ = _patch_deps(settings)
+    # Build a JSON payload well over 2000 chars
+    big_payload = json.dumps({"key_" + str(i): "x" * 100 for i in range(30)})
+    assert len(big_payload) > 2000
+    rows = [{"json_value": big_payload}]
+    with p_s, p_e:
+        with patch(
+            "dbsage.tools.sampling_tools.execute_query", AsyncMock(return_value=rows)
+        ):
+            result = await inspect_json_column("users", "metadata")
+    assert "truncated" in result
+
+
 # ── run_read_only_query limit parameter ───────────────────────────────────────
 
 

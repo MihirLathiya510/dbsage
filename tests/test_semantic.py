@@ -175,6 +175,16 @@ def test_get_database_context_empty_schema() -> None:
     assert "no semantic schema" in result
 
 
+def test_get_database_context_with_connection_label() -> None:
+    from dbsage.tools.semantic_tools import get_database_context
+
+    schema = {"database": {"name": "testdb"}, "vocabulary": {"deal": "Deals"}}
+    with _patch_schema(schema):
+        result = get_database_context(connection="dev-th")
+    assert "[dev-th]" in result
+    assert "testdb" in result
+
+
 def test_get_table_semantics_found() -> None:
     from dbsage.tools.semantic_tools import get_table_semantics
 
