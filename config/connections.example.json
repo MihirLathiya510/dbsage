@@ -1,0 +1,43 @@
+{
+  "default": "primary",
+  "groups": {
+    "all-prod": ["primary", "replica"]
+  },
+  "connections": {
+    "primary": {
+      "host": "db1.example.com",
+      "port": 3306,
+      "database": "app_db",
+      "user": "readonly",
+      "password": "",
+      "password_env": "PRIMARY_DB_PASSWORD",
+      "db_type": "mysql",
+      "description": "Main application database",
+      "requires_confirmation": false
+    },
+    "replica": {
+      "host": "db2.example.com",
+      "port": 3306,
+      "database": "app_db",
+      "user": "readonly",
+      "password": "",
+      "password_env": "REPLICA_DB_PASSWORD",
+      "db_type": "mysql",
+      "description": "Read replica",
+      "requires_confirmation": false
+    },
+    "prod": {
+      "host": "prod.example.com",
+      "port": 3306,
+      "database": "app_db",
+      "user": "readonly",
+      "password": "",
+      "password_env": "PROD_DB_PASSWORD",
+      "db_type": "mysql",
+      "description": "Production database",
+      "requires_confirmation": true,
+      "max_query_rows": 50,
+      "query_timeout_ms": 2000
+    }
+  }
+}
