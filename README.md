@@ -95,7 +95,7 @@ Or edit `~/.claude/claude_code_config.json` directly:
 <summary>Running from source (until PyPI is available)</summary>
 
 ```bash
-git clone https://github.com/MihirLathiya510/dbsage.git
+git clone https://github.com/your-org/dbsage.git
 cd dbsage
 cp .env.example .env   # fill in your database credentials
 uv sync
@@ -217,25 +217,33 @@ uvx dbsage
 
 ## Tools
 
-16 tools across 5 categories. Full reference with output examples: [docs/tools.md](docs/tools.md)
+21 tools across 6 categories. Full reference with output examples: [docs/tools.md](docs/tools.md)
 
-| Category  | Tool                       | What it does                                               |
-|-----------|----------------------------|------------------------------------------------------------|
-| Discovery | `list_tables`              | List all visible tables with row counts                    |
-|           | `search_tables`            | Filter tables by keyword                                   |
-| Schema    | `describe_table`           | Column names, types, nullability, keys, FK references      |
-|           | `table_relationships`      | Foreign key map for one table or the whole database        |
-|           | `schema_summary`           | Full overview: all tables with row counts, sizes, FK graph |
-|           | `show_create_view`         | Full untruncated CREATE VIEW SQL for any database view     |
-| Sampling  | `sample_table`             | Return N rows from a table                                 |
-|           | `sample_column_values`     | Distinct values with counts for a column                   |
-|           | `table_row_count`          | Fast approximate row count from `information_schema`       |
-|           | `inspect_json_column`      | Pretty-print JSON samples from a JSON/JSONB column         |
-| Query     | `run_read_only_query`      | Validate, rewrite, and execute a SELECT query              |
-|           | `explain_query`            | Return the query execution plan (EXPLAIN)                  |
-| Semantic  | `get_database_context`     | Full business mental model: domain, vocabulary, analytics  |
-|           | `get_table_semantics`      | Business description and column meanings for one table     |
-|           | `search_schema_by_meaning` | Find tables/columns by business term                       |
+All tools that touch the database accept an optional `connection='<name>'` parameter to target a specific named connection profile. Call `list_connections()` to see what's configured.
+
+| Category    | Tool                               | What it does                                               |
+|-------------|------------------------------------|------------------------------------------------------------|
+| Discovery   | `list_tables`                      | List all visible tables with row counts                    |
+|             | `search_tables`                    | Filter tables by keyword                                   |
+| Schema      | `describe_table`                   | Column names, types, nullability, keys, FK references      |
+|             | `table_relationships`              | Foreign key map for one table or the whole database        |
+|             | `schema_summary`                   | Full overview: all tables with row counts, sizes, FK graph |
+|             | `show_create_view`                 | Full untruncated CREATE VIEW SQL for any database view     |
+| Sampling    | `sample_table`                     | Return N rows from a table                                 |
+|             | `sample_column_values`             | Distinct values with counts for a column                   |
+|             | `table_row_count`                  | Fast approximate row count from `information_schema`       |
+|             | `inspect_json_column`              | Pretty-print JSON samples from a JSON/JSONB column         |
+| Query       | `run_read_only_query`              | Validate, rewrite, and execute a SELECT query              |
+|             | `explain_query`                    | Return the query execution plan (EXPLAIN)                  |
+| Semantic    | `get_database_context`             | Full business mental model: domain, vocabulary, analytics  |
+|             | `get_table_semantics`              | Business description and column meanings for one table     |
+|             | `search_schema_by_meaning`         | Find tables/columns by business term                       |
+| Connections | `list_connections`                 | Show all configured named connection profiles              |
+|             | `ping_connections`                 | Check connectivity and latency for each profile            |
+|             | `compare_query_across_connections` | Run the same query on multiple DBs, results side by side   |
+|             | `diff_schema`                      | Compare table lists or column definitions between two DBs  |
+|             | `find_table_across_connections`    | Check which connections have a given table                 |
+|             | `compare_row_counts`               | Compare approximate row counts across connections          |
 
 ---
 
@@ -307,6 +315,56 @@ All configuration uses the `DBSAGE_` prefix. Pass values in the MCP client `env`
 
 You can also manage the blacklist in `config/blacklist_tables.json` — it merges with the env var at startup.
 
+### Multi-connection setup
+
+Copy `config/connections.example.json` to `config/connections.json` (gitignored) and fill in your values. Two ways to supply passwords:
+
+**Inline (convenient for local/dev):**
+```json
+{
+  "connections": {
+    "dev": {
+      "host": "dev-db.example.com",
+      "database": "app_db",
+      "user": "readonly",
+      "password": "your_password_here",
+      "db_type": "mysql"
+    }
+  }
+}
+```
+
+**Via environment variable (recommended for prod):**
+```json
+{
+  "connections": {
+    "prod": {
+      "host": "prod-db.example.com",
+      "database": "app_db",
+      "user": "readonly",
+      "password_env": "PROD_DB_PASSWORD",
+      "db_type": "mysql",
+      "requires_confirmation": true
+    }
+  }
+}
+```
+
+If both `password` and `password_env` are set, `password` takes precedence.
+
+Set `requires_confirmation: true` on sensitive connections — every tool response will prepend a warning banner when that connection is used.
+
+Per-profile guardrail overrides (`max_query_rows`, `query_timeout_ms`) take precedence over the global env vars — useful for tighter limits on production connections.
+
+Connection groups let you target multiple profiles at once:
+```json
+{
+  "default": "primary",
+  "groups": { "all-prod": ["prod-us", "prod-eu"] },
+  "connections": { ... }
+}
+```
+
 ---
 
 ## Security
@@ -322,11 +380,11 @@ You can also manage the blacklist in `config/blacklist_tables.json` — it merge
 ## Development
 
 ```bash
-git clone https://github.com/MihirLathiya510/dbsage.git
+git clone https://github.com/your-org/dbsage.git
 cd dbsage
 uv sync --extra dev
 
-uv run pytest               # 181 tests, ~96% coverage
+uv run pytest               # 231 tests, ~96% coverage
 uv run ruff check src/      # lint + security scan
 uv run mypy src/            # strict type check
 ```

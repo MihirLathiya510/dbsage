@@ -40,7 +40,9 @@ Key files to know:
 | File | What it does |
 |---|---|
 | `src/dbsage/mcp_server/server.py` | FastMCP entrypoint — tools register here via side-effect imports |
-| `src/dbsage/mcp_server/config.py` | All configuration — pydantic-settings, `DBSAGE_` prefix |
+| `src/dbsage/mcp_server/config.py` | All configuration — pydantic-settings, `DBSAGE_` prefix, `ConnectionProfile` |
+| `src/dbsage/mcp_server/dependencies.py` | Shared singletons — `get_engine_for()`, `resolve_guardrails()`, `prod_warning()` |
+| `src/dbsage/db/connection_registry.py` | Named engine cache — lazy-init per profile, `resolve_connections()` |
 | `src/dbsage/db/query_validator.py` | Blocks forbidden SQL keywords and patterns |
 | `src/dbsage/db/query_rewriter.py` | Injects LIMIT into queries that lack one |
 | `src/dbsage/db/query_executor.py` | Runs queries with `asyncio.timeout()` enforcement |
@@ -57,7 +59,7 @@ Key files to know:
 ```bash
 git clone https://github.com/your-username/dbsage.git
 cd dbsage
-git remote add upstream https://github.com/MihirLathiya510/dbsage.git
+git remote add upstream https://github.com/your-org/dbsage.git
 uv sync --extra dev
 ```
 
@@ -76,7 +78,7 @@ git checkout -b feat/your-tool-name
 # make changes
 uv run pytest && uv run ruff check src/ && uv run mypy src/
 git push origin feat/your-tool-name
-# open PR from your fork against MihirLathiya510/dbsage master
+# open PR from your fork against your-org/dbsage master
 ```
 
 Keep PRs focused — one tool, one fix, one concern per PR. If your branch drifts behind `upstream/master`, rebase before opening the PR:
@@ -99,6 +101,8 @@ git rebase upstream/master
 | `sampling_tools.py` | Fetching rows or column values |
 | `query_tools.py` | Executing or analyzing SQL |
 | `semantic_tools.py` | Business-context intelligence |
+| `connection_tools.py` | Connection management and health checks |
+| `comparison_tools.py` | Cross-connection comparison and diffing |
 
 If the tool doesn't fit any category, create a new file and import it in `server.py`.
 
@@ -106,18 +110,28 @@ If the tool doesn't fit any category, create a new file and import it in `server
 
 ```python
 @mcp.tool()
-async def your_new_tool(table_name: str, limit: int = 10) -> str:
+async def your_new_tool(
+    table_name: str,
+    limit: int = 10,
+    connection: str | None = None,
+) -> str:
     """One-sentence summary for the LLM.
 
     More detail if needed. The LLM reads this docstring — make it clear and accurate.
     Describe when to call this tool and what it returns.
 
+    Pass connection='<name>' to target a specific named connection profile.
+    Call list_connections() to see available profiles.
+
     Args:
         table_name: What this parameter means.
         limit: What this controls. Defaults to X, capped at Y.
+        connection: Optional named connection profile. Defaults to primary.
     """
     settings = get_app_settings()
-    engine = get_db_engine()
+    engine = get_engine_for(connection)
+    warning = prod_warning(connection)
+    max_rows, _, timeout_ms = resolve_guardrails(connection, settings)
     header = section_header("your_new_tool", table_name)
 
     # Check blacklist
@@ -126,11 +140,11 @@ async def your_new_tool(table_name: str, limit: int = 10) -> str:
         raise TableBlacklistedError(table_name)
 
     # Do the work
-    rows = await execute_query(your_sql, engine, timeout_ms=settings.query_timeout_ms)
+    rows = await execute_query(your_sql, engine, timeout_ms=timeout_ms)
 
     # Format and return
     body = format_results_table(rows)
-    return f"{header}\n\n{body}\n\n  {len(rows)} rows"
+    return f"{warning}{header}\n\n{body}\n\n  {len(rows)} rows"
 ```
 
 Rules:
@@ -138,7 +152,8 @@ Rules:
 - All parameters must have type hints — FastMCP uses them for validation
 - Return type is always `str` — that's what the LLM receives
 - Always respect `blacklisted_tables`
-- Always use `settings.query_timeout_ms` when calling `execute_query`
+- Always use `get_engine_for(connection)` and `resolve_guardrails(connection, settings)` — never call `get_db_engine()` or `settings.query_timeout_ms` directly in tools
+- Always prepend `prod_warning(connection)` to the return value
 - Use `section_header()` to start the output — it keeps all tool responses consistent
 - Use the formatters in `table_formatter.py` — don't invent new output formats
 

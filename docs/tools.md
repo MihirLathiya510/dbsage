@@ -1,6 +1,8 @@
 # Tool Reference
 
-dbsage exposes 16 tools to the LLM across 5 categories. Every tool returns plain-text output formatted for readability — Unicode box tables, aligned columns, timing on every query.
+dbsage exposes 21 tools to the LLM across 6 categories. Every tool returns plain-text output formatted for readability — Unicode box tables, aligned columns, timing on every query.
+
+All tools that touch the database accept an optional `connection` parameter. Pass a named profile to route the call to a specific database. Omit it to use the default. Call `list_connections()` to see available profiles.
 
 ---
 
@@ -35,6 +37,7 @@ Filter tables by keyword (case-insensitive substring match).
 | Parameter | Type | Default | Notes |
 |---|---|---|---|
 | `keyword` | `str` | — | Search term to match against table names |
+| `connection` | `str \| None` | `None` | Named connection profile. Defaults to primary. |
 
 ```
 ── search_tables: "deal" ────────────────────────────────────────────────────────
@@ -59,6 +62,7 @@ Return column definitions for a table: name, data type, nullable, key type, and 
 | Parameter | Type | Default | Notes |
 |---|---|---|---|
 | `table_name` | `str` | — | Exact table name |
+| `connection` | `str \| None` | `None` | Named connection profile. Defaults to primary. |
 
 ```
 ── describe_table: deals ─────────────────────────────────────────────────────────
@@ -82,6 +86,7 @@ Show foreign key relationships — either for a single table or the entire datab
 | Parameter | Type | Default | Notes |
 |---|---|---|---|
 | `table_name` | `str` | `""` | Leave empty to see all FK relationships |
+| `connection` | `str \| None` | `None` | Named connection profile. Defaults to primary. |
 
 ```
 ── table_relationships ───────────────────────────────────────────────────────────
@@ -107,6 +112,7 @@ Return the full, untruncated `CREATE VIEW` SQL for a database view.
 | Parameter | Type | Default | Notes |
 |---|---|---|---|
 | `view_name` | `str` | — | Exact view name |
+| `connection` | `str \| None` | `None` | Named connection profile. Defaults to primary. |
 
 ```
 ── show_create_view: v_active_deals ─────────────────────────────────────────
@@ -124,11 +130,17 @@ WHERE d.status IN ('active', 'term_sheet')
 
 Use this instead of querying `information_schema.VIEWS` — the `VIEW_DEFINITION` column truncates at 4096 characters. `SHOW CREATE VIEW` always returns the complete SQL.
 
+If the name is a table rather than a view, the tool returns a clear message suggesting `describe_table()` or `sample_table()` instead of crashing with a raw MySQL error.
+
 ---
 
 ### `schema_summary`
 
-Full database overview in one call: all tables with row counts, sizes, and FK map. Results are cached for `DBSAGE_CACHE_TTL_SECONDS` (default 5 min).
+Full database overview in one call: all tables with row counts, sizes, and FK map. Results are cached per connection for `DBSAGE_CACHE_TTL_SECONDS` (default 5 min).
+
+| Parameter | Type | Default | Notes |
+|---|---|---|---|
+| `connection` | `str \| None` | `None` | Named connection profile. Defaults to primary. |
 
 ```
 ── schema_summary ────────────────────────────────────────────────────────────────
@@ -162,6 +174,7 @@ Return N rows from a table to understand its data format and value distributions
 |---|---|---|---|
 | `table_name` | `str` | — | Exact table name |
 | `limit` | `int` | `DBSAGE_DEFAULT_SAMPLE_LIMIT` (10) | Capped at `DBSAGE_MAX_QUERY_ROWS` (100) |
+| `connection` | `str \| None` | `None` | Named connection profile. Defaults to primary. |
 
 ```
 ── sample_table: deals ───────────────────────────────────────────────────────────
@@ -188,6 +201,7 @@ Return distinct values with counts for a column, ordered by frequency. Useful fo
 | `table_name` | `str` | — | Exact table name |
 | `column_name` | `str` | — | Column to sample |
 | `limit` | `int` | `20` | Max distinct values, capped at 100 |
+| `connection` | `str \| None` | `None` | Named connection profile. Defaults to primary. |
 
 ```
 ── sample_column_values: deals.status ────────────────────────────────────────────
@@ -210,6 +224,7 @@ Fast approximate row count using `information_schema` — no full table scan.
 | Parameter | Type | Default | Notes |
 |---|---|---|---|
 | `table_name` | `str` | — | Exact table name |
+| `connection` | `str \| None` | `None` | Named connection profile. Defaults to primary. |
 
 ```
 ── table_row_count: facts ────────────────────────────────────────────────────────
@@ -230,6 +245,9 @@ Pretty-print JSON samples from a JSON or JSONB column.
 | `table_name` | `str` | — | Exact table name |
 | `column_name` | `str` | — | Name of the JSON column |
 | `limit` | `int` | `5` | Number of samples, max 20 |
+| `connection` | `str \| None` | `None` | Named connection profile. Defaults to primary. |
+
+Each sample is capped at 2000 characters. Deeply nested or large JSON blobs are truncated with a `... (truncated)` notice rather than flooding the context window.
 
 ```
 ── inspect_json_column: deals.metadata ───────────────────────────────────────────
@@ -268,6 +286,7 @@ Execute a validated, LIMIT-injected SELECT query. Three layers of protection run
 |---|---|---|---|
 | `query` | `str` | — | A SELECT, SHOW, DESCRIBE, EXPLAIN, or WITH query |
 | `limit` | `int \| None` | `None` | Override row count. `None` uses `DBSAGE_MAX_QUERY_ROWS` (100). Explicit values are capped at `DBSAGE_MAX_QUERY_ROWS_HARD_CAP` (500). |
+| `connection` | `str \| None` | `None` | Named connection profile. Defaults to primary. |
 
 ```
 ── run_read_only_query ───────────────────────────────────────────────────────────
@@ -310,6 +329,7 @@ Return the EXPLAIN execution plan for a query to inspect index usage before runn
 | Parameter | Type | Default | Notes |
 |---|---|---|---|
 | `query` | `str` | — | The SELECT query to explain |
+| `connection` | `str \| None` | `None` | Named connection profile. Defaults to primary. |
 
 ```
 ── explain_query ─────────────────────────────────────────────────────────────────
@@ -335,10 +355,14 @@ These tools read from `config/semantic_schema.json`. They return empty/hint resp
 
 ### `get_database_context`
 
-Return a full business mental model of the database: what it's for, the core workflow, business vocabulary, and ready-to-run analytics queries. No parameters.
+Return a full business mental model of the database: what it's for, the core workflow, business vocabulary, and ready-to-run analytics queries.
+
+| Parameter | Type | Default | Notes |
+|---|---|---|---|
+| `connection` | `str \| None` | `None` | Optional — labels the output header with the active connection name. |
 
 ```
-=== vine_marketplace ===
+=== vine_marketplace [dev-th] ===
 
 Commercial real estate deal management platform for lenders and borrowers.
 
@@ -418,3 +442,159 @@ Results for 'financial':
 ```
 
 Note: this tool searches the **semantic schema** (your `config/semantic_schema.json`), not the database itself. It finds tables by business vocabulary, not by running SQL `LIKE` queries.
+
+---
+
+## Connections
+
+These tools require `config/connections.json` with at least one named profile. Copy `config/connections.example.json` to get started. See the README for the full configuration format including password options (`password` inline or `password_env` for env var lookup).
+
+Connection group names (e.g. `"all-prod"`) are accepted anywhere a `connections` list is expected — they expand to the individual profiles defined in the `"groups"` section of `connections.json`.
+
+---
+
+### `list_connections`
+
+List all configured named connection profiles. Shows host, database, type, description, and whether the connection is marked sensitive. Passwords are never shown.
+
+```
+── list_connections ──────────────────────────────────────────────────────────
+
+  name        db_type  host                  database  description         sensitive?
+  ----------  -------  --------------------  --------  ------------------  ----------
+  primary     mysql    db1.example.com       app_db    Main app DB         no
+  replica     mysql    db2.example.com       app_db    Read replica        no
+  analytics   pg       dw.example.com        warehouse Data warehouse      no
+  prod        mysql    prod.example.com      app_db    Production          YES
+
+  4 profiles · default: primary
+
+Groups
+  all-prod → primary, prod
+```
+
+---
+
+### `ping_connections`
+
+Check connectivity and latency for named connection profiles. Useful for diagnosing connection issues before running queries.
+
+| Parameter | Type | Default | Notes |
+|---|---|---|---|
+| `connections` | `list[str] \| None` | `None` | Profiles to ping. Defaults to all. |
+
+```
+── ping_connections ──────────────────────────────────────────────────────────
+
+  primary    OK      (12ms)
+  replica    OK      (15ms)
+  analytics  OK      (44ms)
+  prod       FAILED  connection timed out
+```
+
+---
+
+### `compare_query_across_connections`
+
+Run the same read-only query on multiple connections concurrently and show results side by side. One labeled section per connection. If one connection fails, its error is shown inline — results from other connections are still returned.
+
+| Parameter | Type | Default | Notes |
+|---|---|---|---|
+| `query` | `str` | — | A read-only SQL query to run on all connections |
+| `connections` | `list[str]` | — | Profile or group names |
+
+```
+── compare_query_across_connections ─────────────────────────────────────────
+
+=== primary ===
+  ┏━━━━━━━━┓
+  ┃ count  ┃
+  ┡━━━━━━━━┩
+  │ 4312008│
+  └────────┘
+  1 row · 28ms
+
+=== replica ===
+  ┏━━━━━━━━┓
+  ┃ count  ┃
+  ┡━━━━━━━━┩
+  │ 4312008│
+  └────────┘
+  1 row · 31ms
+```
+
+---
+
+### `diff_schema`
+
+Compare schema between two connections. Without `table`: shows which tables exist in one connection but not the other. With `table`: shows column-level differences — missing columns and type/nullability mismatches.
+
+| Parameter | Type | Default | Notes |
+|---|---|---|---|
+| `connection_a` | `str` | — | First named connection profile |
+| `connection_b` | `str` | — | Second named connection profile |
+| `table` | `str` | `""` | Table name for column diff. Omit for table list diff. |
+
+Table list diff:
+```
+── diff_schema: primary vs staging ──────────────────────────────────────────
+
+  Tables only in primary:   audit_log, feature_flags
+  Tables only in staging:   (none)
+  Tables in both:           147 tables
+```
+
+Column diff:
+```
+── diff_schema: primary vs staging — orders ─────────────────────────────────
+
+  Column diff for: orders
+
+  + discount_code                     varchar  (only in primary)
+  ~ status                            type: varchar → enum
+  = 8 columns identical in both
+```
+
+---
+
+### `find_table_across_connections`
+
+Check which connections have a given table. Case-insensitive exact match. If `connections` is omitted, searches all configured profiles.
+
+| Parameter | Type | Default | Notes |
+|---|---|---|---|
+| `table` | `str` | — | Table name to search for |
+| `connections` | `list[str] \| None` | `None` | Profiles to search. Defaults to all. |
+
+```
+── find_table_across_connections: feature_flags ─────────────────────────────
+
+  primary    FOUND
+  replica    FOUND
+  analytics  NOT FOUND
+  staging    FOUND
+
+  3 of 4 connections have this table
+```
+
+---
+
+### `compare_row_counts`
+
+Compare approximate row counts for a table across multiple connections using `information_schema`. No full table scan — fast estimates only.
+
+| Parameter | Type | Default | Notes |
+|---|---|---|---|
+| `table` | `str` | — | Table name to compare |
+| `connections` | `list[str] \| None` | `None` | Profiles to check. Defaults to all. |
+
+```
+── compare_row_counts: orders ────────────────────────────────────────────────
+
+  primary    4.3M
+  replica    4.3M
+  staging    18.4k
+  analytics  4.3M
+
+  (row counts are information_schema estimates and may lag)
+```
