@@ -5,7 +5,7 @@
 
 **Safe, read-only database access for AI tools.**
 
-dbsage is an MCP server that lets LLMs explore schemas, understand business context, and run validated queries — without any risk of writing to your database.
+dbsage is an MCP server that lets LLMs explore schemas, understand business context, and run validated queries, without any risk of writing to your database.
 
 ![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
 ![MCP Compatible](https://img.shields.io/badge/MCP-compatible-green)
