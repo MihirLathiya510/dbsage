@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
+from dbsage.exceptions import ConnectionPoolError
 from dbsage.mcp_server.config import ConnectionProfile, Settings
 
 # Module-level cache: profile name → AsyncEngine
@@ -61,7 +62,7 @@ def _build_from_profile(profile: ConnectionProfile, password: str) -> AsyncEngin
         )
     except ModuleNotFoundError as exc:
         if "aioodbc" in str(exc):
-            raise ModuleNotFoundError(
+            raise ConnectionPoolError(
                 "The 'aioodbc' package is required for MSSQL connections. "
                 "Install it with: uv sync --extra mssql\n"
                 "You also need the Microsoft ODBC Driver installed at the OS level. "
