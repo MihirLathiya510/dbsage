@@ -76,3 +76,8 @@ no_implicit_reexport = true
 asyncio_mode = "auto"
 testpaths = ["tests"]
 addopts = "--cov=src/dbsage --cov-report=term-missing --cov-fail-under=80"
+
+[dependency-groups]
+dev = [
+    "lefthook>=2.1.6",
+]
