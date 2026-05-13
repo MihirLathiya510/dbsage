@@ -16,6 +16,7 @@ from dbsage.formatting.table_formatter import (
 )
 from dbsage.mcp_server.dependencies import (
     get_app_settings,
+    get_db_type_for,
     get_engine_for,
     prod_warning,
     resolve_guardrails,
@@ -132,6 +133,7 @@ async def table_row_count(table_name: str, connection: str | None = None) -> str
     """
     settings = get_app_settings()
     engine = get_engine_for(connection)
+    db_type = get_db_type_for(connection)
     warning = prod_warning(connection)
     _, _, timeout_ms = resolve_guardrails(connection, settings)
     header = section_header("table_row_count", table_name)
@@ -140,12 +142,23 @@ async def table_row_count(table_name: str, connection: str | None = None) -> str
     if table_name.lower() in blacklisted:
         raise TableBlacklistedError(table_name)
 
-    sql = f"""
-        SELECT TABLE_ROWS AS row_count
-        FROM information_schema.TABLES
-        WHERE TABLE_SCHEMA = DATABASE()
-          AND TABLE_NAME = '{table_name}'
-    """  # noqa: S608  # nosec B608
+    if db_type == "mssql":
+        sql = f"""
+            SELECT SUM(p.rows) AS row_count
+            FROM sys.tables t
+            JOIN sys.indexes i ON t.object_id = i.object_id
+            JOIN sys.partitions p
+                ON i.object_id = p.object_id AND i.index_id = p.index_id
+            WHERE i.index_id <= 1
+              AND t.name = '{table_name}'
+        """  # noqa: S608  # nosec B608
+    else:
+        sql = f"""
+            SELECT TABLE_ROWS AS row_count
+            FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = '{table_name}'
+        """  # noqa: S608  # nosec B608
     rows = await execute_query(sql, engine, timeout_ms=timeout_ms)
 
     if not rows or rows[0]["row_count"] is None:

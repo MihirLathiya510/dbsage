@@ -11,6 +11,7 @@ from dbsage.formatting.table_formatter import (
 )
 from dbsage.mcp_server.dependencies import (
     get_app_settings,
+    get_db_type_for,
     get_engine_for,
     prod_warning,
     resolve_guardrails,
@@ -41,6 +42,7 @@ async def describe_table(table_name: str, connection: str | None = None) -> str:
     """
     settings = get_app_settings()
     engine = get_engine_for(connection)
+    db_type = get_db_type_for(connection)
     warning = prod_warning(connection)
     _, _, timeout_ms = resolve_guardrails(connection, settings)
     header = section_header("describe_table", table_name)
@@ -49,8 +51,12 @@ async def describe_table(table_name: str, connection: str | None = None) -> str:
     if table_name.lower() in blacklisted:
         raise TableBlacklistedError(table_name)
 
-    columns = await _describe_table(table_name, engine, timeout_ms=timeout_ms)
-    fks = await get_foreign_keys(engine, table_name=table_name, timeout_ms=timeout_ms)
+    columns = await _describe_table(
+        table_name, engine, timeout_ms=timeout_ms, db_type=db_type
+    )
+    fks = await get_foreign_keys(
+        engine, table_name=table_name, timeout_ms=timeout_ms, db_type=db_type
+    )
     fk_map = {fk["from_column"]: f"{fk['to_table']}.{fk['to_column']}" for fk in fks}
 
     body = format_column_list_v2(columns, fk_map=fk_map, table_name=table_name)
@@ -76,6 +82,7 @@ async def table_relationships(
     """
     settings = get_app_settings()
     engine = get_engine_for(connection)
+    db_type = get_db_type_for(connection)
     warning = prod_warning(connection)
     _, _, timeout_ms = resolve_guardrails(connection, settings)
 
@@ -87,7 +94,9 @@ async def table_relationships(
     if target and target.lower() in blacklisted:
         raise TableBlacklistedError(target)
 
-    fks = await get_foreign_keys(engine, table_name=target, timeout_ms=timeout_ms)
+    fks = await get_foreign_keys(
+        engine, table_name=target, timeout_ms=timeout_ms, db_type=db_type
+    )
 
     if not fks:
         scope = f"'{target}'" if target else "this database"
@@ -129,6 +138,7 @@ async def schema_summary(connection: str | None = None) -> str:
     """
     settings = get_app_settings()
     engine = get_engine_for(connection)
+    db_type = get_db_type_for(connection)
     warning = prod_warning(connection)
     _, _, timeout_ms = resolve_guardrails(connection, settings)
 
@@ -140,7 +150,7 @@ async def schema_summary(connection: str | None = None) -> str:
 
     blacklisted = {t.lower() for t in settings.blacklisted_tables}
 
-    tables, fks = await _fetch_summary_data(engine, timeout_ms)
+    tables, fks = await _fetch_summary_data(engine, timeout_ms, db_type)
 
     visible_tables = [t for t in tables if t["table_name"].lower() not in blacklisted]
 
@@ -188,6 +198,7 @@ async def schema_summary(connection: str | None = None) -> str:
 async def _fetch_summary_data(
     engine: object,
     timeout_ms: int,
+    db_type: str = "mysql",
 ) -> tuple[list[dict], list[dict]]:  # type: ignore[type-arg]
     """Fetch table sizes and foreign keys concurrently."""
     import asyncio
@@ -196,8 +207,10 @@ async def _fetch_summary_data(
 
     eng: AsyncEngine = engine  # type: ignore[assignment]
     async with asyncio.TaskGroup() as tg:
-        t_task = tg.create_task(get_table_sizes(eng, timeout_ms))
-        fk_task = tg.create_task(get_foreign_keys(eng, timeout_ms=timeout_ms))
+        t_task = tg.create_task(get_table_sizes(eng, timeout_ms, db_type=db_type))
+        fk_task = tg.create_task(
+            get_foreign_keys(eng, timeout_ms=timeout_ms, db_type=db_type)
+        )
     return t_task.result(), fk_task.result()
 
 

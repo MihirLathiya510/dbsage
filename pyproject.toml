@@ -37,6 +37,10 @@ Repository = "https://github.com/MihirLathiya510/dbsage"
 "Bug Tracker" = "https://github.com/MihirLathiya510/dbsage/issues"
 
 [project.optional-dependencies]
+mssql = [
+    "aioodbc>=0.5",
+    "pyodbc>=5.0",
+]
 dev = [
     "ruff",
     "mypy",

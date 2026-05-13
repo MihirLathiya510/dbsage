@@ -15,6 +15,7 @@ from dbsage.formatting.table_formatter import (
 from dbsage.logging_.query_logger import log_query_executed, log_query_rejected
 from dbsage.mcp_server.dependencies import (
     get_app_settings,
+    get_db_type_for,
     get_engine_for,
     prod_warning,
     resolve_guardrails,
@@ -52,6 +53,7 @@ async def run_read_only_query(
     """
     settings = get_app_settings()
     engine = get_engine_for(connection)
+    db_type = get_db_type_for(connection)
     warning = prod_warning(connection)
     max_rows, hard_cap, timeout_ms = resolve_guardrails(connection, settings)
     header = section_header("run_read_only_query")
@@ -76,11 +78,14 @@ async def run_read_only_query(
     else:
         effective_limit = max_rows
 
-    # Detect whether LIMIT was already present before rewriting
-    limit_injected = not bool(re.search(r"\bLIMIT\b", query, re.IGNORECASE))
+    # Detect whether a row limit was already present before rewriting
+    if db_type == "mssql":
+        limit_injected = not bool(re.search(r"\bTOP\b", query, re.IGNORECASE))
+    else:
+        limit_injected = not bool(re.search(r"\bLIMIT\b", query, re.IGNORECASE))
 
-    # Layer 2: rewrite — inject LIMIT if missing
-    safe_query = rewrite_query(query, max_rows=effective_limit)
+    # Layer 2: rewrite — inject LIMIT/TOP if missing
+    safe_query = rewrite_query(query, max_rows=effective_limit, db_type=db_type)
 
     # Layer 3: execute with timeout
     start = time.monotonic()

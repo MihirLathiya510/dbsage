@@ -64,6 +64,18 @@ def resolve_guardrails(
     return max_rows, settings.max_query_rows_hard_cap, timeout
 
 
+def get_db_type_for(name: str | None = None) -> str:
+    """Return the db_type for a named connection profile.
+
+    Falls back to the legacy DBSAGE_DB_TYPE env var, then 'mysql'.
+    """
+    settings = get_settings()
+    resolved = name or settings.default_connection or None
+    if resolved and resolved in settings.connections:
+        return settings.connections[resolved].db_type
+    return settings.db_type
+
+
 def get_engine_for(name: str | None = None) -> AsyncEngine:
     """Return the engine for a named connection profile, or the legacy default.
 

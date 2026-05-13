@@ -157,3 +157,74 @@ async def test_get_table_sizes_cached(mock_engine: AsyncMock) -> None:
         await get_table_sizes(mock_engine)
         await get_table_sizes(mock_engine)
     assert mock_exec.call_count == 1
+
+
+# ── MSSQL dialect ─────────────────────────────────────────────────────────────
+
+
+async def test_list_tables_mssql_uses_db_name_fn(mock_engine: AsyncMock) -> None:
+    mock_exec = AsyncMock(return_value=[{"TABLE_NAME": "orders"}])
+    with patch("dbsage.schema.schema_explorer.execute_query", mock_exec):
+        await list_tables(mock_engine, db_type="mssql")
+    sql_used: str = mock_exec.call_args[0][0]
+    assert "DB_NAME()" in sql_used
+    assert "DATABASE()" not in sql_used
+
+
+async def test_list_tables_mysql_uses_database_fn(mock_engine: AsyncMock) -> None:
+    mock_exec = AsyncMock(return_value=[{"TABLE_NAME": "orders"}])
+    with patch("dbsage.schema.schema_explorer.execute_query", mock_exec):
+        await list_tables(mock_engine, db_type="mysql")
+    sql_used: str = mock_exec.call_args[0][0]
+    assert "DATABASE()" in sql_used
+    assert "DB_NAME()" not in sql_used
+
+
+async def test_describe_table_mssql_uses_db_name_fn(mock_engine: AsyncMock) -> None:
+    mock_exec = AsyncMock(return_value=[])
+    with patch("dbsage.schema.schema_explorer.execute_query", mock_exec):
+        await describe_table("users", mock_engine, db_type="mssql")
+    sql_used: str = mock_exec.call_args[0][0]
+    assert "DB_NAME()" in sql_used
+    assert "DATABASE()" not in sql_used
+
+
+async def test_get_table_sizes_mssql_uses_sys_tables(mock_engine: AsyncMock) -> None:
+    mock_exec = AsyncMock(return_value=[])
+    with patch("dbsage.schema.schema_explorer.execute_query", mock_exec):
+        await get_table_sizes(mock_engine, db_type="mssql")
+    sql_used: str = mock_exec.call_args[0][0]
+    assert "sys.tables" in sql_used
+    assert "information_schema" not in sql_used
+
+
+async def test_get_table_sizes_mysql_uses_information_schema(
+    mock_engine: AsyncMock,
+) -> None:
+    mock_exec = AsyncMock(return_value=[])
+    with patch("dbsage.schema.schema_explorer.execute_query", mock_exec):
+        await get_table_sizes(mock_engine, db_type="mysql")
+    sql_used: str = mock_exec.call_args[0][0]
+    assert "information_schema" in sql_used
+    assert "sys.tables" not in sql_used
+
+
+async def test_get_foreign_keys_mssql_uses_referential_constraints(
+    mock_engine: AsyncMock,
+) -> None:
+    mock_exec = AsyncMock(return_value=[])
+    with patch("dbsage.schema.schema_explorer.execute_query", mock_exec):
+        await get_foreign_keys(mock_engine, db_type="mssql")
+    sql_used: str = mock_exec.call_args[0][0]
+    assert "REFERENTIAL_CONSTRAINTS" in sql_used
+    assert "REFERENCED_TABLE_NAME" not in sql_used
+
+
+async def test_get_foreign_keys_mysql_uses_referenced_table_name(
+    mock_engine: AsyncMock,
+) -> None:
+    mock_exec = AsyncMock(return_value=[])
+    with patch("dbsage.schema.schema_explorer.execute_query", mock_exec):
+        await get_foreign_keys(mock_engine, db_type="mysql")
+    sql_used: str = mock_exec.call_args[0][0]
+    assert "REFERENCED_TABLE_NAME" in sql_used

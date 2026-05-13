@@ -28,7 +28,8 @@ class ConnectionProfile(BaseModel):
     # Use `password` for convenience in local/dev setups.
     password: str = ""
     password_env: str = ""  # env var name — user defines this
-    db_type: str = "mysql"  # "mysql" or "postgresql"
+    db_type: str = "mysql"  # "mysql", "postgresql", or "mssql"
+    odbc_driver: str = "ODBC Driver 18 for SQL Server"  # MSSQL only
     description: str = ""
     requires_confirmation: bool = False  # True for sensitive connections (e.g. prod)
     max_query_rows: int | None = None  # overrides global setting when set

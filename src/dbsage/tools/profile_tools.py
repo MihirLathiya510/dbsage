@@ -15,7 +15,7 @@ from dbsage.mcp_server.server import mcp
 
 _CONNECTIONS_JSON = Path(__file__).parents[3] / "config" / "connections.json"
 
-_VALID_DB_TYPES = frozenset({"mysql", "postgresql"})
+_VALID_DB_TYPES = frozenset({"mysql", "postgresql", "mssql"})
 
 
 def _read_connections_file() -> dict[str, Any] | None:
@@ -60,7 +60,8 @@ async def add_connection(
         database: Database/schema name.
         user: Database username (must have SELECT-only privileges).
         port: Database port (default 3306 for MySQL, 5432 for PostgreSQL).
-        db_type: "mysql" or "postgresql".
+        db_type: "mysql", "postgresql", or "mssql". MSSQL requires port 1433
+            and the Microsoft ODBC Driver installed at the OS level.
         password: Inline password — convenient for local/dev, avoid in prod.
         password_env: Name of the environment variable holding the password.
         description: Human-readable label shown in list_connections().
@@ -75,7 +76,7 @@ async def add_connection(
         return f"{header}\n\n  error: name must not be empty"
     if db_type not in _VALID_DB_TYPES:
         return (
-            f"{header}\n\n  error: db_type must be 'mysql' or 'postgresql', "
+            f"{header}\n\n  error: db_type must be 'mysql', 'postgresql', or 'mssql', "
             f"got '{db_type}'"
         )
     if not (1 <= port <= 65535):

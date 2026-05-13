@@ -3,6 +3,7 @@
 from dbsage.formatting.table_formatter import format_simple_list, section_header
 from dbsage.mcp_server.dependencies import (
     get_app_settings,
+    get_db_type_for,
     get_engine_for,
     prod_warning,
 )
@@ -25,10 +26,13 @@ async def list_tables(connection: str | None = None) -> str:
     """
     settings = get_app_settings()
     engine = get_engine_for(connection)
+    db_type = get_db_type_for(connection)
     warning = prod_warning(connection)
     header = section_header("list_tables")
 
-    all_tables = await _list_tables(engine, timeout_ms=settings.query_timeout_ms)
+    all_tables = await _list_tables(
+        engine, timeout_ms=settings.query_timeout_ms, db_type=db_type
+    )
 
     # Filter blacklisted tables
     blacklisted = {t.lower() for t in settings.blacklisted_tables}
@@ -59,10 +63,13 @@ async def search_tables(keyword: str, connection: str | None = None) -> str:
     """
     settings = get_app_settings()
     engine = get_engine_for(connection)
+    db_type = get_db_type_for(connection)
     warning = prod_warning(connection)
     header = section_header("search_tables", f'"{keyword}"')
 
-    all_tables = await _list_tables(engine, timeout_ms=settings.query_timeout_ms)
+    all_tables = await _list_tables(
+        engine, timeout_ms=settings.query_timeout_ms, db_type=db_type
+    )
 
     blacklisted = {t.lower() for t in settings.blacklisted_tables}
     kw = keyword.lower()

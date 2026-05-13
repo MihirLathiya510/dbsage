@@ -37,6 +37,13 @@ def _build_from_profile(profile: ConnectionProfile, password: str) -> AsyncEngin
             f"postgresql+asyncpg://{profile.user}:{password}"
             f"@{profile.host}:{profile.port}/{profile.database}"
         )
+    elif profile.db_type == "mssql":
+        driver = profile.odbc_driver.replace(" ", "+")
+        url = (
+            f"mssql+aioodbc://{profile.user}:{password}"
+            f"@{profile.host}:{profile.port}/{profile.database}"
+            f"?driver={driver}&TrustServerCertificate=yes"
+        )
     else:
         url = (
             f"mysql+aiomysql://{profile.user}:{password}"

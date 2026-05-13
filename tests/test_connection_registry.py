@@ -157,3 +157,72 @@ def test_resolve_connections_preserves_order() -> None:
     )
     result = resolve_connections(["c", "a", "b"], settings)
     assert result == ["c", "a", "b"]
+
+
+# ── MSSQL dialect ─────────────────────────────────────────────────────────────
+
+
+def _mssql_profile(**kwargs: object) -> ConnectionProfile:
+    defaults: dict[str, object] = {
+        "host": "sql.example.com",
+        "port": 1433,
+        "database": "mydb",
+        "user": "sa",
+        "db_type": "mssql",
+        "odbc_driver": "ODBC Driver 18 for SQL Server",
+    }
+    defaults.update(kwargs)
+    return ConnectionProfile(**defaults)  # type: ignore[arg-type]
+
+
+def test_mssql_url_uses_aioodbc_dialect() -> None:
+    from dbsage.db.connection_registry import _build_from_profile
+
+    profile = _mssql_profile()
+    with patch(
+        "dbsage.db.connection_registry.create_async_engine",
+        return_value=MagicMock(),
+    ) as mock_create:
+        _build_from_profile(profile, "secret")
+    url_arg = mock_create.call_args[0][0]
+    assert "mssql+aioodbc" in url_arg
+
+
+def test_mssql_url_embeds_default_odbc_driver() -> None:
+    from dbsage.db.connection_registry import _build_from_profile
+
+    profile = _mssql_profile()
+    with patch(
+        "dbsage.db.connection_registry.create_async_engine",
+        return_value=MagicMock(),
+    ) as mock_create:
+        _build_from_profile(profile, "secret")
+    url_arg = mock_create.call_args[0][0]
+    assert "ODBC+Driver+18" in url_arg
+
+
+def test_mssql_url_uses_custom_odbc_driver() -> None:
+    from dbsage.db.connection_registry import _build_from_profile
+
+    profile = _mssql_profile(odbc_driver="ODBC Driver 17 for SQL Server")
+    with patch(
+        "dbsage.db.connection_registry.create_async_engine",
+        return_value=MagicMock(),
+    ) as mock_create:
+        _build_from_profile(profile, "secret")
+    url_arg = mock_create.call_args[0][0]
+    assert "ODBC+Driver+17" in url_arg
+    assert "ODBC+Driver+18" not in url_arg
+
+
+def test_mssql_url_includes_trust_server_certificate() -> None:
+    from dbsage.db.connection_registry import _build_from_profile
+
+    profile = _mssql_profile()
+    with patch(
+        "dbsage.db.connection_registry.create_async_engine",
+        return_value=MagicMock(),
+    ) as mock_create:
+        _build_from_profile(profile, "secret")
+    url_arg = mock_create.call_args[0][0]
+    assert "TrustServerCertificate" in url_arg
