@@ -35,6 +35,13 @@ commit-msg:
         }
 
 pre-push:
+  parallel: true
   commands:
+    ruff-format:
+      run: uv run ruff format --check src/ tests/
+    mypy:
+      run: uv run mypy src/
+    bandit:
+      run: uv run bandit -r src/ -q
     tests:
       run: uv run pytest --no-cov -q

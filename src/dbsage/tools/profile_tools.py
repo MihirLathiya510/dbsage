@@ -6,6 +6,7 @@ Changes are written to config/connections.json and take effect immediately
 
 import json
 from pathlib import Path
+from typing import Any, cast
 
 from dbsage.db.connection_registry import reset_registry
 from dbsage.formatting.table_formatter import section_header
@@ -17,17 +18,17 @@ _CONNECTIONS_JSON = Path(__file__).parents[3] / "config" / "connections.json"
 _VALID_DB_TYPES = frozenset({"mysql", "postgresql"})
 
 
-def _read_connections_file() -> dict | None:
+def _read_connections_file() -> dict[str, Any] | None:
     """Read and parse connections.json. Returns None if file is missing."""
     if not _CONNECTIONS_JSON.exists():
         return None
     try:
-        return json.loads(_CONNECTIONS_JSON.read_text())  # type: ignore[return-value]
+        return cast(dict[str, Any], json.loads(_CONNECTIONS_JSON.read_text()))
     except json.JSONDecodeError:
         return {}  # sentinel: file exists but is malformed
 
 
-def _write_connections_file(data: dict) -> None:
+def _write_connections_file(data: dict[str, Any]) -> None:
     _CONNECTIONS_JSON.parent.mkdir(parents=True, exist_ok=True)
     _CONNECTIONS_JSON.write_text(json.dumps(data, indent=2) + "\n")
 
@@ -92,7 +93,7 @@ async def add_connection(
     if raw is None:
         raw = {"connections": {}}
 
-    connections: dict = raw.setdefault("connections", {})
+    connections: dict[str, Any] = raw.setdefault("connections", {})
 
     if name in connections:
         return (
@@ -102,7 +103,7 @@ async def add_connection(
         )
 
     # Build profile dict — omit falsy optional fields to keep JSON minimal
-    profile: dict = {
+    profile: dict[str, Any] = {
         "host": host,
         "port": port,
         "database": database,
@@ -170,7 +171,7 @@ async def remove_connection(name: str) -> str:
             "  error: config/connections.json exists but contains invalid JSON"
         )
 
-    connections: dict = raw.get("connections", {})
+    connections: dict[str, Any] = raw.get("connections", {})
     if name not in connections:
         available = ", ".join(connections.keys()) if connections else "(none)"
         return (
@@ -188,7 +189,7 @@ async def remove_connection(name: str) -> str:
         notes.append("cleared default (was pointing to this profile)")
 
     # Remove from groups; drop any group that becomes empty
-    groups: dict = raw.get("groups", {})
+    groups: dict[str, Any] = raw.get("groups", {})
     emptied: list[str] = []
     for group_name, members in list(groups.items()):
         if name in members:
