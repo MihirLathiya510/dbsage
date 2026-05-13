@@ -50,14 +50,24 @@ def _build_from_profile(profile: ConnectionProfile, password: str) -> AsyncEngin
             f"@{profile.host}:{profile.port}/{profile.database}"
         )
 
-    return create_async_engine(
-        url,
-        pool_size=10,
-        max_overflow=20,
-        pool_timeout=30,
-        pool_recycle=1800,  # required for RDS — avoids stale connections
-        echo=False,
-    )
+    try:
+        return create_async_engine(
+            url,
+            pool_size=10,
+            max_overflow=20,
+            pool_timeout=30,
+            pool_recycle=1800,  # required for RDS — avoids stale connections
+            echo=False,
+        )
+    except ModuleNotFoundError as exc:
+        if "aioodbc" in str(exc):
+            raise ModuleNotFoundError(
+                "The 'aioodbc' package is required for MSSQL connections. "
+                "Install it with: uv sync --extra mssql\n"
+                "You also need the Microsoft ODBC Driver installed at the OS level. "
+                "On macOS: HOMEBREW_ACCEPT_EULA=Y brew install msodbcsql18"
+            ) from exc
+        raise
 
 
 def resolve_connections(names: list[str], settings: Settings) -> list[str]:
