@@ -13,15 +13,11 @@ dbsage is an MCP server that lets LLMs explore schemas, understand business cont
 
 </div>
 
----
-
 ## Why dbsage
 
 Most teams reach a point where they want an AI to help answer data questions, but they're not comfortable giving it raw database access. Direct access means write risk, uncapped queries, and no guardrails around sensitive tables.
 
 dbsage sits between the AI and the database. It enforces read-only access at the query level, injects row limits and timeouts, hides tables you flag as off-limits, and returns structured output that LLMs can reason about cleanly. You can also describe your schema in plain language so the AI arrives with business context instead of starting from scratch every time.
-
----
 
 ## What it looks like in practice
 
@@ -71,9 +67,7 @@ orders
   staging    18.4k
 ```
 
-Named connection profiles handle all of this from one place — no switching VPNs or opening separate clients.
-
----
+Named connection profiles handle all of this from one place, no switching VPNs or opening separate clients.
 
 ## Quick start
 
@@ -125,31 +119,35 @@ Then point your client at the local project:
 }
 ```
 
----
-
 ## Tools
 
-dbsage exposes 23 tools across six areas.
+dbsage has 23 tools. Full reference in [docs/tools.md](docs/tools.md).
 
-**Discovery** — `list_tables` lists visible tables with row counts. `search_tables` filters by keyword.
+### Discovery and schema
 
-**Schema** — `describe_table` returns column names, types, nullability, and foreign key references. `table_relationships` maps FK relationships for a table or the whole database. `schema_summary` gives a full overview at a glance. `show_create_view` returns the complete SQL for a view.
+`list_tables` and `search_tables` let you find tables by name or keyword, with row counts included.
 
-**Sampling** — `sample_table` pulls a small set of rows. `sample_column_values` returns distinct values with counts for a column. `table_row_count` returns a fast approximate count from `information_schema`. `inspect_json_column` pretty-prints JSON samples from a JSON or JSONB column.
+`describe_table` returns column names, types, nullability, and foreign key references. `table_relationships` maps how tables connect across the whole database or for a specific table. `schema_summary` pulls that together into a single overview with sizes and row counts. `show_create_view` returns the full SQL definition for a view.
 
-**Query** — `run_read_only_query` validates, rewrites, and executes a SELECT query. `explain_query` returns the execution plan.
+### Sampling
 
-**Semantic context** — `get_database_context` returns the domain, vocabulary, and analytics notes. `get_table_semantics` returns the business description and column meanings for one table. `search_schema_by_meaning` finds tables and columns by business term.
+`sample_table` pulls a small set of rows so the AI can understand what the data actually looks like. `sample_column_values` returns distinct values with counts for a column, useful for categorical fields. `table_row_count` returns a fast approximate count from `information_schema`. `inspect_json_column` pretty-prints samples from JSON or JSONB columns.
 
-**Connections** — `list_connections` shows configured profiles. `ping_connections` checks connectivity and latency. `add_connection` and `remove_connection` add or remove named profiles at runtime without restarting the server. `compare_query_across_connections` runs the same query across multiple databases. `diff_schema` compares table lists or column definitions between databases. `find_table_across_connections` checks which connections contain a table. `compare_row_counts` compares approximate row counts across connections.
+### Query execution
 
-Full reference: [docs/tools.md](docs/tools.md)
+`run_read_only_query` validates, rewrites, and executes a SELECT query with limits and timeout enforced. `explain_query` returns the execution plan so you can check for full scans before running anything expensive.
 
----
+### Semantic context
+
+`get_database_context` returns the domain, vocabulary, and analytics notes from your semantic config. `get_table_semantics` returns the business description and column meanings for a specific table. `search_schema_by_meaning` lets you find tables and columns by business term rather than exact name.
+
+### Connections
+
+`list_connections` shows configured profiles and `ping_connections` checks connectivity and latency across them. `add_connection` and `remove_connection` let you add or remove profiles at runtime without restarting the server. `compare_query_across_connections` runs the same query across multiple databases, `diff_schema` compares table structures between environments, `find_table_across_connections` checks which connections have a given table, and `compare_row_counts` gives you a quick cross-environment count comparison.
 
 ## Semantic config
 
-The semantic config is what turns raw schema details into something an AI can actually use. Instead of every conversation starting with table discovery and guesswork, you document the domain once and it's available everywhere.
+The semantic config turns raw schema details into something the AI can actually use. Instead of every conversation starting with table discovery and guesswork, you document the domain once and it's available on every call.
 
 Create `config/semantic_schema.json`:
 
@@ -177,17 +175,13 @@ Create `config/semantic_schema.json`:
 }
 ```
 
-You can include a plain-language database description, business vocabulary, core workflows, table and column descriptions, and common query patterns. Full guide: [docs/semantic.md](docs/semantic.md)
-
----
+You can include a plain-language database description, business vocabulary mappings, core workflows, table and column descriptions, and common query patterns. Full guide in [docs/semantic.md](docs/semantic.md).
 
 ## Multiple connections
 
 Every database-facing tool accepts an optional `connection` parameter that routes the call to a named profile. Leave it blank to use the default.
 
-Copy `config/connections.example.json` to `config/connections.json` and fill in your profiles.
-
-For local development, an inline password is fine:
+Copy `config/connections.example.json` to `config/connections.json` and fill in your profiles. For local development, an inline password is fine:
 
 ```json
 {
@@ -220,9 +214,7 @@ For production, use `password_env` and set `requires_confirmation: true`. Respon
 }
 ```
 
-If both `password` and `password_env` are set, `password` takes precedence. You can also set tighter `max_query_rows` and `query_timeout_ms` overrides per profile.
-
-Connection groups let you target several profiles at once:
+If both `password` and `password_env` are set, `password` takes precedence. You can also tighten `max_query_rows` and `query_timeout_ms` per profile. Connection groups let you target several profiles together:
 
 ```json
 {
@@ -234,9 +226,7 @@ Connection groups let you target several profiles at once:
 }
 ```
 
-Full guide: [docs/multi-connection.md](docs/multi-connection.md)
-
----
+Full guide in [docs/multi-connection.md](docs/multi-connection.md).
 
 ## Configuration
 
@@ -246,9 +236,9 @@ All environment variables use the `DBSAGE_` prefix.
 |---|---|---|
 | `DBSAGE_DB_HOST` | `localhost` | |
 | `DBSAGE_DB_PORT` | `3306` | |
-| `DBSAGE_DB_NAME` | — | Required |
-| `DBSAGE_DB_USER` | — | Required |
-| `DBSAGE_DB_PASSWORD` | — | Required |
+| `DBSAGE_DB_NAME` | required | |
+| `DBSAGE_DB_USER` | required | |
+| `DBSAGE_DB_PASSWORD` | required | |
 | `DBSAGE_DB_TYPE` | `mysql` | `mysql`, `postgresql`, or `mssql` |
 | `DBSAGE_MAX_QUERY_ROWS` | `100` | Default LIMIT when query has none |
 | `DBSAGE_MAX_QUERY_ROWS_HARD_CAP` | `500` | Ceiling for explicit limits |
@@ -261,17 +251,13 @@ All environment variables use the `DBSAGE_` prefix.
 
 You can also manage hidden tables in `config/blacklist_tables.json`. Values there are merged with the environment variable at startup.
 
----
-
 ## Security
 
-dbsage validates every query before it reaches the database. INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, CREATE, GRANT, and REVOKE are blocked outright. So are indirect mutation paths like `SELECT INTO OUTFILE`, `LOAD DATA INFILE`, and `CREATE TEMP TABLE`.
+dbsage validates every query before it reaches the database. INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, CREATE, GRANT, and REVOKE are blocked outright, along with indirect mutation paths like `SELECT INTO OUTFILE`, `LOAD DATA INFILE`, and `CREATE TEMP TABLE`.
 
-Passwords are stored as `SecretStr` throughout — they won't appear in logs, stack traces, or repr output. Every query runs with a timeout, gets a default row limit if it doesn't include one, and is capped at `DBSAGE_MAX_QUERY_ROWS_HARD_CAP` even if the caller requests more. Blacklisted tables are stripped from every tool response.
+Passwords are stored as `SecretStr` throughout, so they won't appear in logs, stack traces, or repr output. Every query runs with a timeout, gets a default row limit if it doesn't include one, and is capped at `DBSAGE_MAX_QUERY_ROWS_HARD_CAP` even if the caller requests more. Blacklisted tables are stripped from every tool response.
 
 For the strongest guarantee, create a database user with SELECT privilege only. dbsage enforces read-only at the application layer, but a SELECT-only credential adds a second layer that can't be bypassed.
-
----
 
 ## Development
 
@@ -285,23 +271,17 @@ uv run ruff check src/
 uv run mypy src/
 ```
 
-The test suite currently has 276 tests at around 96% coverage. Strict mypy and ruff security checks run on every commit via Lefthook.
+276 tests, around 96% coverage. Strict mypy and ruff security checks run on every commit via Lefthook.
 
-Contributing guide: [docs/contributing.md](docs/contributing.md)
-
----
+Contributing guide in [docs/contributing.md](docs/contributing.md).
 
 ## Requirements
 
-Python 3.12 or newer, uv, and MySQL 5.7+, PostgreSQL 13+, or SQL Server 2017+. For MSSQL, also install the Microsoft ODBC Driver and run `uv sync --extra mssql`.
-
-Install uv:
+Python 3.12+, uv, and MySQL 5.7+, PostgreSQL 13+, or SQL Server 2017+. For MSSQL, also install the Microsoft ODBC Driver and run `uv sync --extra mssql`.
 
 ```bash
 curl -LsSf https://docs.astral.sh/uv/install.sh | sh
 ```
-
----
 
 ## License
 
