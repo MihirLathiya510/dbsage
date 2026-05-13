@@ -50,7 +50,17 @@ async def test_add_connection_duplicate_name(tmp_path: Path) -> None:
     conn_file = tmp_path / "connections.json"
     _write_connections(
         conn_file,
-        {"connections": {"existing": {"host": "h", "port": 3306, "database": "d", "user": "u", "db_type": "mysql"}}},
+        {
+            "connections": {
+                "existing": {
+                    "host": "h",
+                    "port": 3306,
+                    "database": "d",
+                    "user": "u",
+                    "db_type": "mysql",
+                }
+            }
+        },
     )
 
     with patch("dbsage.tools.profile_tools._CONNECTIONS_JSON", conn_file):
@@ -122,9 +132,7 @@ async def test_add_connection_malformed_json_file(tmp_path: Path) -> None:
     original_content = conn_file.read_text()
 
     with patch("dbsage.tools.profile_tools._CONNECTIONS_JSON", conn_file):
-        result = await add_connection(
-            name="x", host="h", database="db", user="u"
-        )
+        result = await add_connection(name="x", host="h", database="db", user="u")
 
     assert "error" in result
     assert "invalid JSON" in result
@@ -145,7 +153,9 @@ async def test_add_connection_empty_name(tmp_path: Path) -> None:
     assert "name" in result
 
 
-async def test_add_connection_optional_fields_omitted_when_empty(tmp_path: Path) -> None:
+async def test_add_connection_optional_fields_omitted_when_empty(
+    tmp_path: Path,
+) -> None:
     from dbsage.tools.profile_tools import add_connection
 
     conn_file = tmp_path / "connections.json"
@@ -173,7 +183,17 @@ async def test_remove_connection_success(tmp_path: Path) -> None:
     conn_file = tmp_path / "connections.json"
     _write_connections(
         conn_file,
-        {"connections": {"old": {"host": "h", "port": 3306, "database": "d", "user": "u", "db_type": "mysql"}}},
+        {
+            "connections": {
+                "old": {
+                    "host": "h",
+                    "port": 3306,
+                    "database": "d",
+                    "user": "u",
+                    "db_type": "mysql",
+                }
+            }
+        },
     )
 
     with (
@@ -211,7 +231,15 @@ async def test_remove_connection_clears_default(tmp_path: Path) -> None:
         conn_file,
         {
             "default": "primary",
-            "connections": {"primary": {"host": "h", "port": 3306, "database": "d", "user": "u", "db_type": "mysql"}},
+            "connections": {
+                "primary": {
+                    "host": "h",
+                    "port": 3306,
+                    "database": "d",
+                    "user": "u",
+                    "db_type": "mysql",
+                }
+            },
         },
     )
 
@@ -235,8 +263,20 @@ async def test_remove_connection_cleans_groups(tmp_path: Path) -> None:
         conn_file,
         {
             "connections": {
-                "a": {"host": "h", "port": 3306, "database": "d", "user": "u", "db_type": "mysql"},
-                "b": {"host": "h", "port": 3306, "database": "d", "user": "u", "db_type": "mysql"},
+                "a": {
+                    "host": "h",
+                    "port": 3306,
+                    "database": "d",
+                    "user": "u",
+                    "db_type": "mysql",
+                },
+                "b": {
+                    "host": "h",
+                    "port": 3306,
+                    "database": "d",
+                    "user": "u",
+                    "db_type": "mysql",
+                },
             },
             "groups": {
                 "prod": ["a", "b"],
