@@ -3,7 +3,9 @@
 
 # dbsage
 
-**AI Database Copilot** — a production-grade [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that gives LLMs safe, structured, read-only access to any MySQL or PostgreSQL database.
+**Safe, read-only database access for AI tools.**
+
+dbsage is an MCP server that lets LLMs explore schemas, understand business context, and run validated queries — without any risk of writing to your database.
 
 ![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
 ![MCP Compatible](https://img.shields.io/badge/MCP-compatible-green)
@@ -13,88 +15,75 @@
 
 ---
 
-## See it in action
+## Why dbsage
 
-> A user asks Claude: _"How many deals are in the pipeline, broken down by type?"_
+Most teams reach a point where they want an AI to help answer data questions, but they're not comfortable giving it raw database access. Direct access means write risk, uncapped queries, and no guardrails around sensitive tables.
 
-```
-── get_database_context ─────────────────────────────────────────────────────────
-
-  Domain: commercial real estate lending
-  Vocabulary: deal → Deals, loan → Deals, lender → Lenders
-  Workflow: Borrower submits Deal → Lenders review → Term sheet issued → Closed
-
-── run_read_only_query ──────────────────────────────────────────────────────────
-
-  SELECT dt.name AS deal_type, COUNT(d.id) AS count
-  FROM Deals d
-  JOIN DealTypes dt ON d.dealType_id = dt.id
-  GROUP BY dt.id ORDER BY count DESC
-
-  ┏━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┓
-  ┃ deal_type            ┃ count ┃
-  ┡━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━┩
-  │ Bridge Loan          │   142 │
-  │ Construction Loan    │    89 │
-  │ Permanent Financing  │    34 │
-  │ Mezzanine            │    12 │
-  └──────────────────────┴───────┘
-
-  4 rows · 28ms
-```
-
-> **2 tool calls. No manual schema exploration. No guessing table names.**
->
-> The semantic layer told Claude what "deal" maps to. The query ran validated and
-> LIMIT-enforced before touching the database.
-
-> A developer asks Claude: _"Is staging in sync with production before we deploy?"_
-
-```
-── diff_schema: prod → staging ─────────────────────────────────────────────────
-
-  Tables only in prod:     audit_log, feature_flags
-  Tables only in staging:  (none)
-  Tables in both:          147 tables
-
-── compare_row_counts: orders ───────────────────────────────────────────────────
-
-  prod       4.3M
-  replica    4.3M
-  staging    18.4k
-
-  (row counts are information_schema estimates)
-```
-
-> **2 tool calls across 3 databases. No VPN switching. No separate DB clients.**
->
-> Configure named connection profiles once. Every tool accepts `connection='<name>'`
-> to route to the right database — or leave it blank to hit the default.
+dbsage sits between the AI and the database. It enforces read-only access at the query level, injects row limits and timeouts, hides tables you flag as off-limits, and returns structured output that LLMs can reason about cleanly. You can also describe your schema in plain language so the AI arrives with business context instead of starting from scratch every time.
 
 ---
 
-## Quick connect
+## What it looks like in practice
 
-**You do not need to clone this repository.**
+A teammate asks how many deals are in the pipeline, grouped by type. dbsage loads the database context, then runs:
 
-Once dbsage is published to PyPI, connect any MCP-compatible client by passing your database credentials as environment variables — no `.env` file, no local setup.
-
-> PyPI publication is in progress. Until then, use the **from-source path** in the collapsible sections below.
-
-### Claude Code
-
-```bash
-claude mcp add dbsage \
-  --command "uvx" \
-  --args "dbsage" \
-  --env "DBSAGE_DB_HOST=your-host.rds.amazonaws.com" \
-  --env "DBSAGE_DB_NAME=your_database" \
-  --env "DBSAGE_DB_USER=readonly_user" \
-  --env "DBSAGE_DB_PASSWORD=your_password" \
-  --env "DBSAGE_DB_TYPE=mysql"
+```sql
+SELECT dt.name AS deal_type, COUNT(d.id) AS count
+FROM Deals d
+JOIN DealTypes dt ON d.dealType_id = dt.id
+GROUP BY dt.id
+ORDER BY count DESC;
 ```
 
-Or edit `~/.claude/claude_code_config.json` directly:
+```text
+deal_type             count
+Bridge Loan             142
+Construction Loan        89
+Permanent Financing      34
+Mezzanine                12
+
+4 rows in 28ms
+```
+
+Because the semantic config maps `deal` to the right table, there's no guesswork about table names or join paths.
+
+Before shipping a release, you might want to check whether staging still matches production:
+
+```text
+Schema comparison: prod to staging
+
+Tables only in prod:
+  audit_log
+  feature_flags
+
+Tables only in staging:
+  none
+
+Tables in both: 147
+```
+
+Or compare row counts across environments:
+
+```text
+orders
+  prod       4.3M
+  replica    4.3M
+  staging    18.4k
+```
+
+Named connection profiles handle all of this from one place — no switching VPNs or opening separate clients.
+
+---
+
+## Quick start
+
+Once published to PyPI, this is all you need:
+
+```bash
+uvx dbsage
+```
+
+Client configuration:
 
 ```json
 {
@@ -114,17 +103,16 @@ Or edit `~/.claude/claude_code_config.json` directly:
 }
 ```
 
-<details>
-<summary>Running from source (until PyPI is available)</summary>
+PyPI publication is still in progress. To run from source:
 
 ```bash
 git clone https://github.com/your-org/dbsage.git
 cd dbsage
-cp .env.example .env   # fill in your database credentials
+cp .env.example .env
 uv sync
 ```
 
-Then in your MCP client config:
+Then point your client at the local project:
 
 ```json
 {
@@ -135,157 +123,35 @@ Then in your MCP client config:
     }
   }
 }
-```
-
-</details>
-
----
-
-### Cursor IDE
-
-Create or edit `.cursor/mcp.json` in your project (or `~/.cursor/mcp.json` for global):
-
-```json
-{
-  "mcpServers": {
-    "dbsage": {
-      "command": "uvx",
-      "args": ["dbsage"],
-      "env": {
-        "DBSAGE_DB_HOST": "your-host",
-        "DBSAGE_DB_NAME": "your_database",
-        "DBSAGE_DB_USER": "readonly_user",
-        "DBSAGE_DB_PASSWORD": "your_password",
-        "DBSAGE_DB_TYPE": "mysql"
-      }
-    }
-  }
-}
-```
-
-Restart Cursor after saving.
-
-<details>
-<summary>Running from source</summary>
-
-```json
-{
-  "mcpServers": {
-    "dbsage": {
-      "command": "uv",
-      "args": ["run", "--directory", "/absolute/path/to/dbsage", "dbsage"]
-    }
-  }
-}
-```
-
-</details>
-
----
-
-### Claude Desktop
-
-Edit the config file for your OS:
-
-- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
-
-```json
-{
-  "mcpServers": {
-    "dbsage": {
-      "command": "uvx",
-      "args": ["dbsage"],
-      "env": {
-        "DBSAGE_DB_HOST": "your-host",
-        "DBSAGE_DB_NAME": "your_database",
-        "DBSAGE_DB_USER": "readonly_user",
-        "DBSAGE_DB_PASSWORD": "your_password",
-        "DBSAGE_DB_TYPE": "mysql"
-      }
-    }
-  }
-}
-```
-
-Restart Claude Desktop after saving.
-
-<details>
-<summary>Running from source</summary>
-
-```json
-{
-  "mcpServers": {
-    "dbsage": {
-      "command": "uv",
-      "args": ["run", "--directory", "/absolute/path/to/dbsage", "dbsage"]
-    }
-  }
-}
-```
-
-</details>
-
----
-
-### Any MCP-compatible client
-
-dbsage speaks standard MCP over stdio. Pass this command with `DBSAGE_*` environment variables for your credentials:
-
-```
-uvx dbsage
 ```
 
 ---
 
 ## Tools
 
-21 tools across 6 categories. Full reference with output examples: [docs/tools.md](docs/tools.md)
+dbsage exposes 23 tools across six areas.
 
-All tools that touch the database accept an optional `connection='<name>'` parameter to target a specific named connection profile. Call `list_connections()` to see what's configured.
+**Discovery** — `list_tables` lists visible tables with row counts. `search_tables` filters by keyword.
 
-| Category    | Tool                               | What it does                                               |
-|-------------|------------------------------------|------------------------------------------------------------|
-| Discovery   | `list_tables`                      | List all visible tables with row counts                    |
-|             | `search_tables`                    | Filter tables by keyword                                   |
-| Schema      | `describe_table`                   | Column names, types, nullability, keys, FK references      |
-|             | `table_relationships`              | Foreign key map for one table or the whole database        |
-|             | `schema_summary`                   | Full overview: all tables with row counts, sizes, FK graph |
-|             | `show_create_view`                 | Full untruncated CREATE VIEW SQL for any database view     |
-| Sampling    | `sample_table`                     | Return N rows from a table                                 |
-|             | `sample_column_values`             | Distinct values with counts for a column                   |
-|             | `table_row_count`                  | Fast approximate row count from `information_schema`       |
-|             | `inspect_json_column`              | Pretty-print JSON samples from a JSON/JSONB column         |
-| Query       | `run_read_only_query`              | Validate, rewrite, and execute a SELECT query              |
-|             | `explain_query`                    | Return the query execution plan (EXPLAIN)                  |
-| Semantic    | `get_database_context`             | Full business mental model: domain, vocabulary, analytics  |
-|             | `get_table_semantics`              | Business description and column meanings for one table     |
-|             | `search_schema_by_meaning`         | Find tables/columns by business term                       |
-| Connections | `list_connections`                 | Show all configured named connection profiles              |
-|             | `ping_connections`                 | Check connectivity and latency for each profile            |
-|             | `compare_query_across_connections` | Run the same query on multiple DBs, results side by side   |
-|             | `diff_schema`                      | Compare table lists or column definitions between two DBs  |
-|             | `find_table_across_connections`    | Check which connections have a given table                 |
-|             | `compare_row_counts`               | Compare approximate row counts across connections          |
+**Schema** — `describe_table` returns column names, types, nullability, and foreign key references. `table_relationships` maps FK relationships for a table or the whole database. `schema_summary` gives a full overview at a glance. `show_create_view` returns the complete SQL for a view.
+
+**Sampling** — `sample_table` pulls a small set of rows. `sample_column_values` returns distinct values with counts for a column. `table_row_count` returns a fast approximate count from `information_schema`. `inspect_json_column` pretty-prints JSON samples from a JSON or JSONB column.
+
+**Query** — `run_read_only_query` validates, rewrites, and executes a SELECT query. `explain_query` returns the execution plan.
+
+**Semantic context** — `get_database_context` returns the domain, vocabulary, and analytics notes. `get_table_semantics` returns the business description and column meanings for one table. `search_schema_by_meaning` finds tables and columns by business term.
+
+**Connections** — `list_connections` shows configured profiles. `ping_connections` checks connectivity and latency. `add_connection` and `remove_connection` add or remove named profiles at runtime without restarting the server. `compare_query_across_connections` runs the same query across multiple databases. `diff_schema` compares table lists or column definitions between databases. `find_table_across_connections` checks which connections contain a table. `compare_row_counts` compares approximate row counts across connections.
+
+Full reference: [docs/tools.md](docs/tools.md)
 
 ---
 
-## Semantic layer
+## Semantic config
 
-The semantic layer is what separates dbsage from a raw SQL proxy. Without it, an LLM has to explore the schema step-by-step before it can answer anything. With it, one call to `get_database_context()` gives Claude a complete business picture.
+The semantic config is what turns raw schema details into something an AI can actually use. Instead of every conversation starting with table discovery and guesswork, you document the domain once and it's available everywhere.
 
-**Without the semantic layer:**
-```
-list_tables → describe_table → describe_table → table_relationships
-→ sample_column_values → ... (6+ calls just to understand the schema)
-```
-
-**With the semantic layer:**
-```
-get_database_context() → full domain understanding in one call → query runs
-```
-
-Add a `config/semantic_schema.json` file to enable it:
+Create `config/semantic_schema.json`:
 
 ```json
 {
@@ -293,7 +159,7 @@ Add a `config/semantic_schema.json` file to enable it:
     "name": "your_db",
     "description": "What this database is for",
     "domain": "e-commerce",
-    "core_workflow": "User places Order → Items added → Payment processed → Shipped"
+    "core_workflow": "User places Order, Items added, Payment processed, Shipped"
   },
   "vocabulary": {
     "customer": "users",
@@ -303,7 +169,7 @@ Add a `config/semantic_schema.json` file to enable it:
     "users": {
       "description": "Registered customer accounts",
       "columns": {
-        "id": "Unique user identifier (UUID)",
+        "id": "Unique user identifier UUID",
         "email": "Login email address"
       }
     }
@@ -311,46 +177,18 @@ Add a `config/semantic_schema.json` file to enable it:
 }
 ```
 
-Full cookbook with domain templates (e-commerce, SaaS, financial): [docs/semantic.md](docs/semantic.md)
+You can include a plain-language database description, business vocabulary, core workflows, table and column descriptions, and common query patterns. Full guide: [docs/semantic.md](docs/semantic.md)
 
 ---
 
-## Multi-connection
+## Multiple connections
 
-Connect to multiple databases simultaneously — dev, staging, prod, replicas, data warehouses. Every tool accepts `connection='<name>'` to route to a named profile. Six cross-connection tools let Claude compare schemas, diff row counts, and run the same query across environments in a single call.
+Every database-facing tool accepts an optional `connection` parameter that routes the call to a named profile. Leave it blank to use the default.
 
-Setup guide, password options, per-profile guardrails, and connection groups: [docs/multi-connection.md](docs/multi-connection.md)
+Copy `config/connections.example.json` to `config/connections.json` and fill in your profiles.
 
----
+For local development, an inline password is fine:
 
-## Configuration
-
-All configuration uses the `DBSAGE_` prefix. Pass values in the MCP client `env` block or in a `.env` file when running from source.
-
-| Variable | Default | Description |
-|---|---|---|
-| `DBSAGE_DB_HOST` | `localhost` | Database hostname |
-| `DBSAGE_DB_PORT` | `3306` | Database port |
-| `DBSAGE_DB_NAME` | — | Database name (required) |
-| `DBSAGE_DB_USER` | — | Database user (required) |
-| `DBSAGE_DB_PASSWORD` | — | Database password (required) |
-| `DBSAGE_DB_TYPE` | `mysql` | `mysql` or `postgresql` |
-| `DBSAGE_MAX_QUERY_ROWS` | `100` | Default row limit auto-injected when no LIMIT present |
-| `DBSAGE_MAX_QUERY_ROWS_HARD_CAP` | `500` | Ceiling when LLM passes an explicit `limit` parameter |
-| `DBSAGE_QUERY_TIMEOUT_MS` | `3000` | Query execution timeout in ms |
-| `DBSAGE_SLOW_QUERY_THRESHOLD_MS` | `2000` | Log queries exceeding this (ms) |
-| `DBSAGE_DEFAULT_SAMPLE_LIMIT` | `10` | Default row count for `sample_table` |
-| `DBSAGE_CACHE_TTL_SECONDS` | `300` | Schema metadata cache TTL in seconds |
-| `DBSAGE_BLACKLISTED_TABLES` | `[]` | Tables hidden from the LLM |
-| `DBSAGE_DEV_MODE` | `false` | Human-readable logs (JSON otherwise) |
-
-You can also manage the blacklist in `config/blacklist_tables.json` — it merges with the env var at startup.
-
-### Multi-connection setup
-
-Copy `config/connections.example.json` to `config/connections.json` (gitignored) and fill in your values. Two ways to supply passwords:
-
-**Inline (convenient for local/dev):**
 ```json
 {
   "connections": {
@@ -365,7 +203,8 @@ Copy `config/connections.example.json` to `config/connections.json` (gitignored)
 }
 ```
 
-**Via environment variable (recommended for prod):**
+For production, use `password_env` and set `requires_confirmation: true`. Responses from that connection will include a warning banner, and the password never appears in config or logs:
+
 ```json
 {
   "connections": {
@@ -381,30 +220,56 @@ Copy `config/connections.example.json` to `config/connections.json` (gitignored)
 }
 ```
 
-If both `password` and `password_env` are set, `password` takes precedence.
+If both `password` and `password_env` are set, `password` takes precedence. You can also set tighter `max_query_rows` and `query_timeout_ms` overrides per profile.
 
-Set `requires_confirmation: true` on sensitive connections — every tool response will prepend a warning banner when that connection is used.
+Connection groups let you target several profiles at once:
 
-Per-profile guardrail overrides (`max_query_rows`, `query_timeout_ms`) take precedence over the global env vars — useful for tighter limits on production connections.
-
-Connection groups let you target multiple profiles at once:
 ```json
 {
   "default": "primary",
-  "groups": { "all-prod": ["prod-us", "prod-eu"] },
-  "connections": { ... }
+  "groups": {
+    "all-prod": ["prod-us", "prod-eu"]
+  },
+  "connections": {}
 }
 ```
+
+Full guide: [docs/multi-connection.md](docs/multi-connection.md)
+
+---
+
+## Configuration
+
+All environment variables use the `DBSAGE_` prefix.
+
+| Variable | Default | Notes |
+|---|---|---|
+| `DBSAGE_DB_HOST` | `localhost` | |
+| `DBSAGE_DB_PORT` | `3306` | |
+| `DBSAGE_DB_NAME` | — | Required |
+| `DBSAGE_DB_USER` | — | Required |
+| `DBSAGE_DB_PASSWORD` | — | Required |
+| `DBSAGE_DB_TYPE` | `mysql` | `mysql`, `postgresql`, or `mssql` |
+| `DBSAGE_MAX_QUERY_ROWS` | `100` | Default LIMIT when query has none |
+| `DBSAGE_MAX_QUERY_ROWS_HARD_CAP` | `500` | Ceiling for explicit limits |
+| `DBSAGE_QUERY_TIMEOUT_MS` | `3000` | |
+| `DBSAGE_SLOW_QUERY_THRESHOLD_MS` | `2000` | Logs queries slower than this |
+| `DBSAGE_DEFAULT_SAMPLE_LIMIT` | `10` | Default rows for `sample_table` |
+| `DBSAGE_CACHE_TTL_SECONDS` | `300` | Schema metadata cache TTL |
+| `DBSAGE_BLACKLISTED_TABLES` | `[]` | Tables hidden from all tools |
+| `DBSAGE_DEV_MODE` | `false` | Human-readable logs |
+
+You can also manage hidden tables in `config/blacklist_tables.json`. Values there are merged with the environment variable at startup.
 
 ---
 
 ## Security
 
-- **Read-only at the validator level.** INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, CREATE, GRANT, REVOKE are blocked before execution, not just discouraged. Indirect mutation paths (`SELECT INTO OUTFILE`, `LOAD DATA INFILE`, `CREATE TEMP TABLE`) are also blocked.
-- **Credentials never leak.** The database password is `SecretStr` — it never appears in logs, stack traces, or repr output.
-- **No runaway queries.** Every execution runs under `asyncio.timeout()`. A default of `DBSAGE_MAX_QUERY_ROWS` (100) rows is injected automatically; passing an explicit `limit` is capped at `DBSAGE_MAX_QUERY_ROWS_HARD_CAP` (500). Neither limit can be bypassed by the LLM.
-- **Sensitive tables stay hidden.** `DBSAGE_BLACKLISTED_TABLES` removes tables from all tool responses before the LLM sees them.
-- **Recommended:** create a database user with `SELECT` privilege only — defense in depth beyond the validator.
+dbsage validates every query before it reaches the database. INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, CREATE, GRANT, and REVOKE are blocked outright. So are indirect mutation paths like `SELECT INTO OUTFILE`, `LOAD DATA INFILE`, and `CREATE TEMP TABLE`.
+
+Passwords are stored as `SecretStr` throughout — they won't appear in logs, stack traces, or repr output. Every query runs with a timeout, gets a default row limit if it doesn't include one, and is capped at `DBSAGE_MAX_QUERY_ROWS_HARD_CAP` even if the caller requests more. Blacklisted tables are stripped from every tool response.
+
+For the strongest guarantee, create a database user with SELECT privilege only. dbsage enforces read-only at the application layer, but a SELECT-only credential adds a second layer that can't be bypassed.
 
 ---
 
@@ -415,21 +280,26 @@ git clone https://github.com/your-org/dbsage.git
 cd dbsage
 uv sync --extra dev
 
-uv run pytest               # 231 tests, ~96% coverage
-uv run ruff check src/      # lint + security scan
-uv run mypy src/            # strict type check
+uv run pytest
+uv run ruff check src/
+uv run mypy src/
 ```
 
-Contributing guide, how to add a tool, and the PR checklist: [docs/contributing.md](docs/contributing.md)
+The test suite currently has 276 tests at around 96% coverage. Strict mypy and ruff security checks run on every commit via Lefthook.
+
+Contributing guide: [docs/contributing.md](docs/contributing.md)
 
 ---
 
 ## Requirements
 
-- Python 3.12+
-- [uv](https://docs.astral.sh/uv/) — `curl -LsSf https://astral.sh/uv/install.sh | sh`
-- MySQL 5.7+ or PostgreSQL 13+
-- Network access to your database
+Python 3.12 or newer, uv, and MySQL 5.7+, PostgreSQL 13+, or SQL Server 2017+. For MSSQL, also install the Microsoft ODBC Driver and run `uv sync --extra mssql`.
+
+Install uv:
+
+```bash
+curl -LsSf https://docs.astral.sh/uv/install.sh | sh
+```
 
 ---
 
