@@ -59,9 +59,17 @@ def _display_width(s: str) -> int:
 
 
 def _truncate(value: Any) -> str:  # noqa: ANN401
-    """Convert value to string, sanitize newlines, and truncate to _MAX_CELL_WIDTH."""
+    """Convert value to string, sanitize newlines, and truncate to _MAX_CELL_WIDTH.
+
+    JSON objects/arrays (values whose first non-whitespace char is { or [) are
+    returned in full — they push wide columns into vertical mode naturally, and
+    truncating mid-JSON produces unreadable output.
+    """
     s = "NULL" if value is None else str(value)
     s = s.replace("\n", " ").replace("\r", " ")
+    stripped = s.lstrip()
+    if stripped and stripped[0] in ("{", "["):
+        return s
     if _display_width(s) > _MAX_CELL_WIDTH:
         # Truncate by rune count, not byte count
         result = ""

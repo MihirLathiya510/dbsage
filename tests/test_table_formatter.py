@@ -543,3 +543,50 @@ def test_format_json_samples_has_section_dividers() -> None:
 
 def test_format_json_samples_empty_returns_empty() -> None:
     assert format_json_samples([]) == ""
+
+
+# ── _truncate JSON detection ──────────────────────────────────────────────────
+
+
+def test_truncate_json_object_not_truncated() -> None:
+    from dbsage.formatting.table_formatter import _truncate
+
+    long_json = '{"key": "' + "v" * 200 + '"}'
+    assert _truncate(long_json) == long_json
+
+
+def test_truncate_json_array_not_truncated() -> None:
+    from dbsage.formatting.table_formatter import _truncate
+
+    long_json = "[" + ", ".join(str(i) for i in range(100)) + "]"
+    assert _truncate(long_json) == long_json
+
+
+def test_truncate_json_with_leading_whitespace_not_truncated() -> None:
+    from dbsage.formatting.table_formatter import _truncate
+
+    long_json = '  {"key": "' + "v" * 200 + '"}'
+    assert _truncate(long_json) == long_json
+
+
+def test_truncate_normal_long_string_still_capped() -> None:
+    from dbsage.formatting.table_formatter import _truncate
+
+    long_str = "x" * 200
+    result = _truncate(long_str)
+    assert result.endswith("...")
+    assert len(result) < 90  # well under 200
+
+
+def test_truncate_null_value() -> None:
+    from dbsage.formatting.table_formatter import _truncate
+
+    assert _truncate(None) == "NULL"
+
+
+def test_format_results_table_json_column_full_value_present() -> None:
+    long_json = '{"address": "' + "a" * 200 + '"}'
+    rows = [{"id": 1, "data": long_json}]
+    result = format_results_table(rows)
+    # Full JSON must appear somewhere in the output (not cut off mid-string)
+    assert long_json in result
